@@ -4,6 +4,38 @@ Notable changes to `quantum_al`, by release. Dates are UTC, from git history.
 
 ## [Unreleased]
 
+### Added
+- `quantum_al.acquisition`: multi-property criteria from Bayesian optimal
+  experimental design (joint and marginal EIG, total correlation, whitened
+  trace and maximum eigenvalue), `EnsembleCriterionSelector`, and greedy batch
+  EIG with a (1 - 1/e) guarantee (`GreedyBatchEIGSelector`).
+- `quantum_al.diagnostics`: measures whether the joint and correlation-blind
+  criteria would select different batches, and why.
+- `quantum_al.synthetic`: multi-property problems with tunable cross-property
+  correlation and noise.
+- `quantum_al.loop` and `quantum_al.stats`: the shared pool-based loop,
+  learning curves and AULC, paired tests, bootstrap confidence intervals,
+  effect sizes and Holm-Bonferroni correction.
+- `quantum_al.circuit` measurement-grouping tool and
+  `benchmarks/run_measurement_grouping.py`, which regenerates
+  `results/measurement_grouping.json`.
+- `benchmarks/run_correlation_sweep.py`: a controlled study of when joint
+  acquisition can beat correlation-blind acquisition.
+- Sphinx documentation (`docs/`) with full derivations of every property the
+  tests check, Read the Docs configuration, runnable `examples/`, a
+  `benchmarks/README.md` mapping every result file to its command, and
+  community files (code of conduct, issue and pull request templates).
+
+### Changed
+- `paper.md` and `README.md` rewritten around the information-theoretic
+  criteria and their diagnostics, and every reference in `paper.bib` checked
+  against Crossref or arXiv.
+- `fetch_data` sends an honest `quantum_al` User-Agent; `data_utils` takes a
+  configurable data directory and raises a clear error when data is missing.
+- Baseline fallbacks now emit a `RuntimeWarning` instead of printing, with
+  the same behavior.
+- Outputs of pre-rebuild scripts moved to `results/legacy/`, with a README.
+### Earlier unreleased changes
 - Added `src/quantum_al/joint_eig.py`: a joint expected-information-gain
   acquisition score derived from Bayesian experimental design, with a proved
   and numerically-verified total-correlation decomposition theorem, tested

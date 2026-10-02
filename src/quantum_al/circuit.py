@@ -54,7 +54,7 @@ def pad_observable(O, n_qubits):
 
 
 def amplitude_encoding_circuit(alpha, n_qubits=None):
-    """Real state-preparation circuit for |psi> = sum_j alpha_j |j>."""
+    """Real state-preparation circuit for ``|psi> = sum_j alpha_j |j>``."""
     _require_qiskit()
     if n_qubits is None:
         n_qubits = n_qubits_for_dim(len(alpha))
@@ -165,6 +165,61 @@ def transpiled_resource_report(alpha, basis_gates=("cx", "rz", "sx", "x")):
         "total_gates": sum(gate_counts.values()),
         "cx_count": gate_counts.get("cx", 0),
     }
+
+
+def grouping_counts(pauli_op):
+    """Measurement settings needed for one Pauli-decomposed observable.
+
+    Returns a dict with ``raw`` (number of Pauli terms, i.e. settings with
+    no grouping), ``qwc_groups`` (qubit-wise commuting groups, measurable
+    with single-qubit basis changes) and ``full_commuting_groups`` (general
+    commuting groups, which need entangling basis changes). Groups come
+    from Qiskit's greedy graph colouring, so counts are upper bounds on
+    the true minimum."""
+    _require_qiskit()
+    if len(pauli_op.paulis) == 0:
+        return {"raw": 0, "qwc_groups": 0, "full_commuting_groups": 0}
+    return {
+        "raw": len(pauli_op.paulis),
+        "qwc_groups": len(pauli_op.group_commuting(qubit_wise=True)),
+        "full_commuting_groups": len(pauli_op.group_commuting(qubit_wise=False)),
+    }
+
+
+def measurement_grouping_report(observables, n_qubits=None):
+    """Measurement cost of every quantity ``U_total`` needs on hardware.
+
+    Parameters
+    ----------
+    observables : dict
+        ``name -> (d, d)`` Hermitian matrix (e.g. ``QuantumObservableBank.O``).
+    n_qubits : int, optional
+        Register size; defaults to ``ceil(log2 d)``.
+
+    Returns
+    -------
+    dict
+        ``per_quantity`` grouping counts (see :func:`grouping_counts`) for
+        each ``<name>_O``, ``<name>_O2`` and symmetrized product
+        ``<a>_<b>_sym``, and their ``totals`` with reduction factors.
+    """
+    names = list(observables)
+    d = observables[names[0]].shape[0]
+    n_qubits = n_qubits or n_qubits_for_dim(d)
+    padded = {n: pad_observable(observables[n], n_qubits) for n in names}
+    per_quantity = {}
+    for n in names:
+        per_quantity[f"{n}_O"] = grouping_counts(pauli_decompose(padded[n]))
+        per_quantity[f"{n}_O2"] = grouping_counts(pauli_decompose(padded[n] @ padded[n]))
+    for i, a in enumerate(names):
+        for b in names[i + 1:]:
+            sym = (padded[a] @ padded[b] + padded[b] @ padded[a]) / 2.0
+            per_quantity[f"{a}_{b}_sym"] = grouping_counts(pauli_decompose(sym))
+    totals = {key: sum(q[key] for q in per_quantity.values())
+              for key in ("raw", "qwc_groups", "full_commuting_groups")}
+    totals["qwc_reduction_factor"] = totals["raw"] / max(totals["qwc_groups"], 1)
+    totals["full_reduction_factor"] = totals["raw"] / max(totals["full_commuting_groups"], 1)
+    return {"n_qubits": n_qubits, "per_quantity": per_quantity, "totals": totals}
 
 
 def make_depolarizing_noise_model(p1=0.001, p2=0.01):

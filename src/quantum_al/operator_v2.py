@@ -33,7 +33,7 @@ def domain_feature_groups(feature_columns=FEATURE_COLUMNS):
 
 
 class ImportanceWeightedQuantumSelector:
-    """U_total ranking, but features rescaled by sqrt(RF feature_importances_)
+    """U_total ranking, but features rescaled by ``sqrt(RF feature_importances_)``
     before state encoding."""
 
     def __init__(self, d, feature_groups=None, seed=0, use_covariance=True,

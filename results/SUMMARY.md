@@ -9,9 +9,8 @@ code in the repository.
 
 Source files: `results/primary_benchmark_summary.json`, `results/statistical_tests.json`,
 `results/ablation.json`, `results/observable_sensitivity.json`,
-`results/runtime_memory.json`, `results/improvement_attempt.json`,
-`results/discrete_classification.json`, `results/transfer_learning.json`,
-`results/multi_property.json`, `results/spurious_correlation.json`.
+`results/runtime_memory.json`, `results/improvement_attempt.json`, and, for the
+pre-rebuild secondary experiments, `results/legacy/` (see its README).
 
 ## Headline finding (updated after the v3 residual-coupled experiment)
 
@@ -134,7 +133,7 @@ Reweighting by feature importance did not fix this because importance is
 static per iteration and still doesn't track per-candidate predictive
 uncertainty the way an ensemble or GP does.
 
-## Secondary experiments (fixed crashes, rerun; lower priority per scope)
+## Secondary experiments (pre-rebuild scripts; outputs now in `results/legacy/`)
 
 - **discrete_classification** (synthetic 6-class data, not yet wired to real
   `data/crystal_system.json`): final accuracy — quantum-margin 89.3%, entropy
@@ -153,7 +152,7 @@ uncertainty the way an ensemble or GP does.
   follow-up rather than reported as a result.
 - **spurious_correlation_analysis**: ran successfully as a controlled
   synthetic-noise study (this one is legitimately synthetic by design, not
-  meant to model real materials). Numbers in `spurious_correlation.json` are
+  meant to model real materials). Numbers in `legacy/spurious_correlation.json` are
   real outputs of the noise-injection experiment.
 
 ## Joint expected-information-gain (JEIG): a mathematically derived

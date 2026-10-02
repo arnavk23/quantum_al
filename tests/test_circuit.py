@@ -64,3 +64,18 @@ def test_sparse_circuit_variance_matches_classical(sample_state):
     circuit_var, n_terms_O, n_terms_O2 = circuit_variance(alpha, O_sparse, exact=True)
 
     assert abs(classical_var - circuit_var) < 1e-6
+
+
+def test_measurement_grouping_reduces_settings():
+    from quantum_al.circuit import grouping_counts, measurement_grouping_report, pauli_decompose
+    from quantum_al.operator import QuantumObservableBank
+
+    bank = QuantumObservableBank(21, default_feature_groups(21), seed=0)
+    report = measurement_grouping_report(bank.O)
+    assert report["n_qubits"] == 5
+    assert len(report["per_quantity"]) == 3 * 2 + 3  # O, O^2 per observable + pairwise products
+    t = report["totals"]
+    assert t["raw"] >= t["qwc_groups"] >= t["full_commuting_groups"] > 0
+    # a diagonal observable is a sum of Z-strings: one setting suffices
+    diag = pauli_decompose(np.diag(np.arange(4.0)).astype(complex))
+    assert grouping_counts(diag)["qwc_groups"] == 1

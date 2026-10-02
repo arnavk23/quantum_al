@@ -19,8 +19,8 @@ def softmax(x, axis=-1):
 
 
 def feature_phase_weights(X_labeled, eps=1e-8):
-    """phi_j for each feature j: mean |correlation| with other features
-    over the current labeled pool, scaled to [0, pi]."""
+    """phi_j for each feature j: mean absolute correlation with the other
+    features over the current labeled pool, scaled to [0, pi]."""
     d = X_labeled.shape[1]
     if X_labeled.shape[0] < 3:
         return np.zeros(d)
@@ -32,7 +32,7 @@ def feature_phase_weights(X_labeled, eps=1e-8):
 
 
 def encode_states(X, phase_weights):
-    """Definition 1: complex amplitude vectors |psi_i> for each row of X.
+    """Definition 1: complex amplitude vectors ``|psi_i>`` for each row of X.
     X is assumed standardized (zero mean, unit variance per column)."""
     p = softmax(X ** 2, axis=1)  # sums to 1 per row
     phi = phase_weights[None, :]  # (1, d), broadcast across candidates

@@ -5,13 +5,20 @@ on:
     branches: [main, master]
   pull_request:
     branches: [main, master]
+  workflow_dispatch:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    name: pytest (${{ matrix.os }}, Python ${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
-        python-version: ["3.10", "3.11"]
+        os: [ubuntu-latest]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        include:
+          - os: macos-latest
+            python-version: "3.12"
     steps:
       - uses: actions/checkout@v4
 
@@ -19,11 +26,67 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+          cache: pip
 
-      - name: Install package and test dependencies
+      - name: Install package with test and circuit extras
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[test,circuit]"
 
-      - name: Run test suite
-        run: pytest tests/ -v
+      - name: Run test suite with coverage
+        run: pytest -v --cov=quantum_al --cov-report=term-missing
+
+  core-only:
+    name: pytest without optional extras
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install core package only
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e . pytest
+      - name: Run test suite (Qiskit-dependent tests skip)
+        run: pytest -v
+
+  examples:
+    name: examples and smoke benchmarks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[circuit]"
+      - name: Run examples (no data or API key needed)
+        run: |
+          for f in examples/0[1-4]_*.py; do echo "::group::$f"; python "$f"; echo "::endgroup::"; done
+          python examples/05_materials_project.py   # exits cleanly without data
+      - name: Smoke-run data-free benchmarks
+        run: |
+          python benchmarks/run_correlation_sweep.py --quick --out correlation_sweep_ci.json
+          python benchmarks/run_measurement_grouping.py
+          git diff --exit-code results/measurement_grouping.json
+
+  docs:
+    name: documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[docs]"
+      - name: Build docs (warnings are errors)
+        run: sphinx-build -W --keep-going -b html docs docs/_build/html

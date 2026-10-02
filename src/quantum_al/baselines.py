@@ -3,13 +3,30 @@ Expected Improvement, Maximum Entropy, Diversity Sampling, BADGE,
 CoreSet, RF Uncertainty, Random Sampling. Each factory method returns an
 object with .select_next_experiments(X_candidates, X_train, y_train,
 n_select) -> (selected_idx, scores, info_dict).
+
+If a baseline's model fails to fit (e.g. a Gaussian process on a
+degenerate labeled set), it falls back to random selection for that round
+and emits a ``RuntimeWarning``. This keeps the fallback visible and
+matches the behavior that produced the results in ``results/``; use
+``warnings.simplefilter("error", RuntimeWarning)`` to make it fatal.
 """
+import warnings
+
 import numpy as np
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, Matern, WhiteKernel
 from sklearn.cluster import KMeans
 from sklearn.neural_network import MLPRegressor
+
+
+def _warn_fallback(method, exc):
+    warnings.warn(
+        f"{method} failed ({type(exc).__name__}: {exc}); falling back to random "
+        "selection for this round.",
+        RuntimeWarning,
+        stacklevel=3,
+    )
 
 
 class BaselineFactory:
@@ -29,7 +46,7 @@ class BaselineFactory:
                     selected_idx = np.argsort(std_pred)[-n_select:]
                     return selected_idx, std_pred, {'gp_uncertainty': std_pred}
                 except Exception as e:
-                    print(f"GP uncertainty sampling failed: {e}")
+                    _warn_fallback("GP uncertainty sampling", e)
                     return np.random.choice(len(X_candidates), n_select, replace=False), None, {}
 
         return UncertaintySampling()
@@ -59,7 +76,7 @@ class BaselineFactory:
                     selected_idx = np.argsort(disagreement)[-n_select:]
                     return selected_idx, disagreement, {'committee_variance': disagreement}
                 except Exception as e:
-                    print(f"QBC failed: {e}")
+                    _warn_fallback("QBC", e)
                     return np.random.choice(len(X_candidates), n_select, replace=False), None, {}
 
         return QueryByCommittee()
@@ -87,7 +104,7 @@ class BaselineFactory:
                     selected_idx = np.argsort(ei)[-n_select:]
                     return selected_idx, ei, {'expected_improvement': ei}
                 except Exception as e:
-                    print(f"EI failed: {e}")
+                    _warn_fallback("EI", e)
                     return np.random.choice(len(X_candidates), n_select, replace=False), None, {}
 
         return ExpectedImprovement()
@@ -110,7 +127,7 @@ class BaselineFactory:
                     selected_idx = np.argsort(entropy_estimate)[-n_select:]
                     return selected_idx, entropy_estimate, {'entropy': entropy_estimate}
                 except Exception as e:
-                    print(f"Max entropy failed: {e}")
+                    _warn_fallback("Max entropy", e)
                     return np.random.choice(len(X_candidates), n_select, replace=False), None, {}
 
         return MaximumEntropy()
@@ -145,7 +162,7 @@ class BaselineFactory:
                     diversity_scores[selected_idx] = 1.0
                     return selected_idx, diversity_scores, {'diversity_selected': True}
                 except Exception as e:
-                    print(f"Diversity sampling failed: {e}")
+                    _warn_fallback("Diversity sampling", e)
                     return np.random.choice(len(X_candidates), n_select, replace=False), None, {}
 
         return DiversitySampling()
@@ -189,7 +206,7 @@ class BaselineFactory:
                     badge_scores[selected_idx] = uncertainty[selected_idx]
                     return selected_idx, badge_scores, {'badge_embeddings': True}
                 except Exception as e:
-                    print(f"BADGE failed: {e}")
+                    _warn_fallback("BADGE", e)
                     return np.random.choice(len(X_candidates), n_select, replace=False), None, {}
 
         return BADGE()
@@ -236,7 +253,7 @@ class BaselineFactory:
                     coreset_scores[selected_idx] = 1.0
                     return selected_idx, coreset_scores, {'coreset_selected': True}
                 except Exception as e:
-                    print(f"CoreSet failed: {e}")
+                    _warn_fallback("CoreSet", e)
                     return np.random.choice(len(X_candidates), n_select, replace=False), None, {}
 
         return CoreSet()
@@ -257,7 +274,7 @@ class BaselineFactory:
                     selected_idx = np.argsort(uncertainty)[-n_select:]
                     return selected_idx, uncertainty, {'rf_uncertainty': uncertainty}
                 except Exception as e:
-                    print(f"RF uncertainty failed: {e}")
+                    _warn_fallback("RF uncertainty", e)
                     return np.random.choice(len(X_candidates), n_select, replace=False), None, {}
 
         return RandomForestUncertainty()
