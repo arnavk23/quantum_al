@@ -1,0 +1,9 @@
+rho=0.0   sigma=0.1  overlap=0.786 spearman=0.9965 snr=0.890 | AULC joint-marginal -0.0014 (p=0.8241309933935231) | Joint-EIG=0.330 Marginal-EIG=0.331 Greedy-Batch-EIG=0.333 Trace=0.330 Random=0.340 [1111s]
+rho=0.5   sigma=0.1  overlap=0.646 spearman=0.9902 snr=0.860 | AULC joint-marginal -0.0142 (p=0.17888656929457633) | Joint-EIG=0.323 Marginal-EIG=0.337 Greedy-Batch-EIG=0.331 Trace=0.320 Random=0.346 [746s]
+rho=0.9   sigma=0.1  overlap=0.794 spearman=0.9951 snr=0.831 | AULC joint-marginal -0.0227 (p=0.0190832915148392) | Joint-EIG=0.324 Marginal-EIG=0.347 Greedy-Batch-EIG=0.346 Trace=0.329 Random=0.361 [854s]
+rho=0.99  sigma=0.1  overlap=0.957 spearman=0.9997 snr=0.807 | AULC joint-marginal +0.0170 (p=0.011725545009864525) | Joint-EIG=0.356 Marginal-EIG=0.339 Greedy-Batch-EIG=0.349 Trace=0.342 Random=0.370 [248s]
+rho=0.0   sigma=0.5  overlap=0.777 spearman=0.9966 snr=0.841 | AULC joint-marginal -0.0027 (p=0.7101528876228157) | Joint-EIG=0.230 Marginal-EIG=0.233 Greedy-Batch-EIG=0.238 Trace=0.227 Random=0.243 [196s]
+rho=0.5   sigma=0.5  overlap=0.679 spearman=0.9923 snr=0.816 | AULC joint-marginal +0.0081 (p=0.40418103804528127) | Joint-EIG=0.247 Marginal-EIG=0.239 Greedy-Batch-EIG=0.255 Trace=0.241 Random=0.258 [291s]
+rho=0.9   sigma=0.5  overlap=0.742 spearman=0.9912 snr=0.773 | AULC joint-marginal +0.0063 (p=0.5236573174670636) | Joint-EIG=0.250 Marginal-EIG=0.244 Greedy-Batch-EIG=0.271 Trace=0.253 Random=0.271 [160s]
+rho=0.99  sigma=0.5  overlap=0.726 spearman=0.9912 snr=0.761 | AULC joint-marginal +0.0032 (p=0.7368154021508277) | Joint-EIG=0.253 Marginal-EIG=0.249 Greedy-Batch-EIG=0.262 Trace=0.247 Random=0.274 [152s]
+Saved results/correlation_sweep.json (3757s)

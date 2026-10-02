@@ -181,8 +181,8 @@ overlap of the two top-:math:`b` batches, and the median :math:`s_k`.
 This offers an explanation, not just a report, of the null result on
 Materials Project data (:doc:`findings`): a correlation-aware criterion can
 only beat a correlation-blind one through decisions it makes differently, and
-the mathematics confines those to a second-order regime. The controlled study
-in :doc:`findings` tests this prediction directly.
+the mathematics confines those to a second-order regime. :doc:`findings`
+tests this prediction on real candidate pools and in a controlled study.
 
 Batch selection
 ---------------

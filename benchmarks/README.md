@@ -7,10 +7,20 @@ statistics are described in the documentation (`docs/benchmarks.rst`).
 
 Run everything from the repository root after `pip install -e ".[all]"`.
 
+**Exact reproduction needs scikit-learn 1.7.2.** Random-forest outputs change
+between scikit-learn releases, so a newer version gives slightly different
+numbers even with identical data and seeds; on the small, noisy property pairs
+the differences are as large as the effects being tested. The published
+real-data `results/` reproduce with scikit-learn 1.7.2 and NumPy 2.3.5:
+
+```bash
+pip install "scikit-learn==1.7.2" "numpy==2.3.5"
+```
+
 ## No data needed
 
 ```bash
-python benchmarks/run_correlation_sweep.py          # ~25 min on 8 cores; --quick for a smoke test
+python benchmarks/run_correlation_sweep.py          # about 1 hour on 8 cores; --quick for a smoke test
 python benchmarks/run_measurement_grouping.py       # seconds; needs the [circuit] extra
 ```
 

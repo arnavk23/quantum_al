@@ -210,15 +210,51 @@ enough shared-material overlap to run a meaningful AL protocol):
 | Pair | n | label r | Joint-EIG vs Marginal-Sum | Joint-EIG vs Random | mean gap |
 |---|---|---|---|---|---|
 | band_gap + formation_energy | 498 | -0.365 | +0.0076, p=0.27 (ns) | +0.0623, **p=0.034 (survives correction)** | 0.0118 |
-| formation_energy + magnetic_moment | 220 | 0.205 | +0.0006, p=0.99 (ns) | -0.0164, p=0.66 (ns) | 0.0041 |
-| band_gap + magnetic_moment | 193 | -0.024 | +0.0086, p=0.25 (ns) | +0.0186, p=0.17 (ns, corrected) | 0.0042 |
-| bulk_modulus + dielectric_constant | 49 | 0.334 | -0.0314, p=0.61 (ns) | +0.0388, p=0.61 (ns) | 0.0211 |
+| formation_energy + magnetic_moment | 220 | 0.205 | +0.0006, p=1.00 (ns) | -0.0164, p=1.00 (ns) | 0.0041 |
+| band_gap + magnetic_moment | 193 | -0.024 | +0.0077, p=0.28 (ns) | +0.0149, p=0.18 (ns, corrected) | 0.0042 |
+| bulk_modulus + dielectric_constant | 49 | 0.334 | -0.0317, p=0.60 (ns) | +0.0384, p=0.60 (ns) | 0.0211 |
 
 (`results/joint_eig_experiment.json`, `_replication.json`,
 `_pair_bg_mm.json`, `_pair_bm_dc.json`. The last pair used a scaled-down
 protocol, n0=15/T=5/batch=3, because n=49 is too small for the default
 N0=50 seed; treat it as low-power/inconclusive, not a fifth vote either
 way.)
+
+p-values in this table are paired t-tests, Holm-Bonferroni corrected over the
+two comparisons for each pair.
+
+**Reproduction check (2 October 2026).** All four pairs were rerun from a
+fresh Materials Project download with scikit-learn 1.7.2. The shared-material
+counts and label correlations match exactly. Two pairs (band_gap +
+formation_energy, formation_energy + magnetic_moment) reproduce every learning
+curve to floating-point precision. In the other two, a single trial differs
+(trial 2 of band_gap + magnetic_moment from round 1, trial 0 of bulk_modulus +
+dielectric_constant from round 0, by at most 0.043 and 0.002 in R²) while all
+other trials match exactly; the current code is deterministic across repeated
+runs, so the likely cause is a few Materials Project entries whose values
+changed after the original September download. The JSON files above are the
+reruns, and the table reflects them (two numbers per affected pair moved by
+less than 0.004; no conclusion changed). With scikit-learn 1.9.1, every curve
+differs slightly, because random-forest outputs change between releases.
+
+**Selection diagnostics on real candidate pools** (`selection_diagnostics` in
+each JSON; `quantum_al.diagnostics.criterion_disagreement`, averaged over
+rounds and trials, computed on the Joint-EIG run's candidate pools):
+
+| Pair | top-batch overlap (Jaccard) | ≈ shared picks | rank correlation | std(TC) / std(Σ EIG_k) | median s_k |
+|---|---|---|---|---|---|
+| band_gap + formation_energy | 0.763 | 12.9 of 15 | 0.998 | 0.085 | 0.67 |
+| formation_energy + magnetic_moment | 0.955 | 14.6 of 15 | 0.999 | 0.033 | 0.49 |
+| band_gap + magnetic_moment | 0.971 | 14.8 of 15 | 0.998 | 0.035 | 0.47 |
+| bulk_modulus + dielectric_constant | 0.900 | 2.8 of 3 | 0.983 | 0.092 | 0.79 |
+
+Across candidates, the total-correlation term varies only 3 to 9% as much as
+the marginal scores, so the joint and correlation-blind criteria rank
+candidates almost identically and share most of every batch. This is the
+mechanism the theory predicts (docs/theory.rst, Proposition 4 and its
+corollary): the joint criterion can only change a decision between candidates
+whose marginal scores are nearly tied, which explains why it never
+significantly beats the correlation-blind ablation.
 
 **Honest reading:** across 4 real, independently-measured pairs spanning
 weak to strong label correlation, Joint-EIG **never** significantly beats
@@ -251,6 +287,28 @@ the original manuscript, but it does not change the empirical
 conclusion: on this class of real materials data, in this batch-AL
 setting, correlation-aware acquisition is not distinguishable from
 ensemble uncertainty alone.
+
+## Controlled synthetic study: correlation sweep
+
+Source: `benchmarks/run_correlation_sweep.py`, `results/correlation_sweep.json`,
+`figures/fig8_correlation_sweep.pdf`. Synthetic by design and kept separate
+from the real-data results: two targets with signal correlation
+rho in {0, 0.5, 0.9, 0.99} and noise sigma in {0.1, 0.5}, 10 paired trials per
+setting, AULC metric, Holm-Bonferroni over the 8 settings.
+
+- **Joint EIG vs. marginal-EIG sum: 0 of 8 settings significant after
+  correction.** The two raw-significant results point in opposite directions
+  (rho = 0.9: -0.0227, Holm p = 0.13; rho = 0.99: +0.0170, Holm p = 0.09, both
+  at sigma = 0.1).
+- The diagnostics behave as the theory predicts: the mean total correlation
+  rises from about 0.007 to 0.11 nats and std(TC)/std(sum EIG_k) from 0.08 to
+  0.31 as rho goes from 0 to 0.99. The criteria share 65-96% of each batch,
+  less than on real data, yet learning outcomes do not differ.
+- Random selection has the highest mean AULC in all 8 settings (never
+  significant against Joint-EIG after correction), most likely because
+  uncertainty-driven criteria over-sample the low-density tails of these
+  Gaussian-input problems. So this study tests joint vs. marginal acquisition
+  in a regime where neither beats random.
 
 ## Known limitations of this rebuild (be upfront about these too)
 

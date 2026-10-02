@@ -228,7 +228,7 @@ def main(tasks, n_trials, out_name, n0=N0_DEFAULT, t_iters=T_ITERS_DEFAULT, batc
         json.dump(out, f, indent=2)
 
     print("\n" + "=" * 70)
-    print("SUMMARY (final joint R^2, mean of band_gap & formation_energy R^2)")
+    print(f"SUMMARY (final joint R^2, mean of {tasks[0]} & {tasks[1]} R^2)")
     print("=" * 70)
     for name, s in summary.items():
         print(f"  {name:14s} {s['final_joint_r2_mean']:.4f} +/- {s['final_joint_r2_std']:.4f}")

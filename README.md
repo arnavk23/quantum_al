@@ -76,9 +76,19 @@ when their marginal scores are nearly tied. Full derivations are in
 (label correlation −0.37 to 0.33, n = 49 to 498), the joint EIG **never
 significantly beats its correlation-blind ablation**, and it beats random
 sampling significantly on only one pair. The total-correlation term is
-measurably non-zero on every pair but small (a mean of 0.004 to 0.021 nats
-per candidate), which is the regime in which the theory says the two criteria
-can only reorder near-ties.
+measurably non-zero on every pair, but across candidates it varies only 3–9%
+as much as the marginal scores. So the two criteria rank candidates almost
+identically (Spearman ≥ 0.98) and share most of every batch (12.9 to 14.8 of
+15 picks), as the theory predicts.
+
+**Controlled study.** On synthetic two-property problems with signal
+correlation from 0 to 0.99 and two noise levels
+(`benchmarks/run_correlation_sweep.py`), the correlation term grows with
+correlation as predicted, but no joint-versus-marginal difference is
+significant after Holm correction in any of the eight settings. Random
+selection has the highest mean in all eight (never significantly), most
+likely because uncertainty-driven criteria over-sample the low-density tails
+of these problems.
 
 **Quantum-inspired formalism.** Against nine classical baselines on five real
 regression tasks, the formalism as originally specified loses on four, and
