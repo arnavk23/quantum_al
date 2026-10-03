@@ -4,37 +4,67 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "quantum-al"
-version = "0.1.0"
-description = "A covariance-aware, quantum-inspired uncertainty formalism for active learning, benchmarked against classical baselines on real Materials Project data, with a verified quantum circuit realization."
+dynamic = ["version"]
+description = "Correlation-aware active learning for materials discovery: information-theoretic multi-property acquisition, a quantum-inspired formalism with a Qiskit circuit realization, and a real-data benchmark harness."
 readme = "README.md"
 license = { file = "LICENSE" }
 authors = [
     { name = "Arnav Kapoor", email = "arnavkapoor23@iiserb.ac.in" },
 ]
-requires-python = ">=3.9"
+requires-python = ">=3.10"
+keywords = [
+    "active learning", "materials discovery", "Bayesian experimental design",
+    "expected information gain", "multi-task learning", "uncertainty quantification",
+    "quantum-inspired algorithms", "Materials Project",
+]
 dependencies = [
     "numpy>=1.24.0",
     "scipy>=1.10.0",
     "scikit-learn>=1.3.0",
-    "pandas>=2.0.0",
-    "pymatgen>=2023.8.10",
-    "matplotlib>=3.7.0",
 ]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Scientific/Engineering :: Chemistry",
     "Topic :: Scientific/Engineering :: Physics",
 ]
 
 [project.optional-dependencies]
+data = ["pymatgen>=2023.8.10"]
 circuit = ["qiskit>=1.0.0", "qiskit-aer>=0.14.0"]
-test = ["pytest>=7.0.0"]
+plot = ["matplotlib>=3.7.0"]
+test = ["pytest>=7.0.0", "pytest-cov>=4.0"]
+docs = ["sphinx>=7.0", "sphinx-rtd-theme>=2.0"]
+all = ["quantum-al[data,circuit,plot,test,docs]"]
 
 [project.urls]
+Homepage = "https://github.com/arnavk23/quantum_al"
 Repository = "https://github.com/arnavk23/quantum_al"
+Issues = "https://github.com/arnavk23/quantum_al/issues"
+Changelog = "https://github.com/arnavk23/quantum_al/blob/master/CHANGELOG.md"
+
+[tool.setuptools.dynamic]
+version = { attr = "quantum_al.__version__" }
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+filterwarnings = [
+    # sklearn GP hyperparameter warnings on tiny smoke-test datasets
+    "ignore::sklearn.exceptions.ConvergenceWarning",
+]
+
+[tool.coverage.run]
+source = ["quantum_al"]
+omit = ["*/fetch_data.py"]

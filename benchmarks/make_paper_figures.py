@@ -269,6 +269,49 @@ def fig7_joint_eig_comparison():
     print("saved fig7_joint_eig_comparison.pdf")
 
 
+def fig8_correlation_sweep():
+    """Synthetic, controlled study (results/correlation_sweep.json): effect of
+    joint vs. correlation-blind acquisition, and how often they even differ."""
+    path = os.path.join(RESULTS, "correlation_sweep.json")
+    if not os.path.exists(path):
+        print("skipped fig8 (run benchmarks/run_correlation_sweep.py first)")
+        return
+    with open(path) as f:
+        sweep = json.load(f)
+    noise_colors = {0.1: "#2a78d6", 0.5: "#eb6834"}
+    noise_markers = {0.1: "o", 0.5: "s"}
+    fig, (ax_a, ax_b) = plt.subplots(1, 2, figsize=(6.4, 2.6))
+    for noise in sorted({st["noise"] for st in sweep["settings"]}):
+        rows = sorted((st for st in sweep["settings"] if st["noise"] == noise),
+                      key=lambda st: st["correlation"])
+        rho = [st["correlation"] for st in rows]
+        cmp = [st["comparisons"]["Joint-EIG vs Marginal-EIG"] for st in rows]
+        diff = np.array([c["mean_diff"] for c in cmp])
+        lo = diff - np.array([c["ci95_diff"][0] for c in cmp])
+        hi = np.array([c["ci95_diff"][1] for c in cmp]) - diff
+        style = dict(color=noise_colors.get(noise, "#555555"), marker=noise_markers.get(noise, "^"),
+                     markersize=5, linewidth=1.5, label=rf"noise $\sigma$ = {noise}")
+        ax_a.errorbar(rho, diff, yerr=[lo, hi], capsize=3, elinewidth=1.0, **style)
+        ax_b.plot(rho, [st["joint_vs_marginal_diagnostics"]["topk_overlap"] for st in rows], **style)
+    ax_a.axhline(0.0, color="#888888", linewidth=0.8, zorder=0)
+    ax_a.set_xlabel(r"signal correlation $\rho$")
+    ax_a.set_ylabel("AULC difference\n(joint EIG $-$ marginal EIG)")
+    ax_a.set_title("(a) Effect on learning (95% CI)")
+    ax_b.set_xlabel(r"signal correlation $\rho$")
+    ax_b.set_ylabel("Jaccard overlap,\njoint vs. marginal EIG")
+    ax_b.set_ylim(0, 1.02)
+    ax_b.set_title("(b) Same batches? (top-$b$ overlap)")
+    for ax in (ax_a, ax_b):
+        ax.spines[["top", "right"]].set_visible(False)
+        ax.grid(axis="y", color="#e6e6e6", linewidth=0.6)
+        ax.set_axisbelow(True)
+    ax_b.legend(loc="lower left", frameon=False)
+    fig.tight_layout()
+    fig.savefig(os.path.join(FIGDIR, "fig8_correlation_sweep.pdf"))
+    plt.close(fig)
+    print("saved fig8_correlation_sweep.pdf")
+
+
 if __name__ == "__main__":
     fig1_learning_curves()
     fig2_primary_comparison()
@@ -277,4 +320,5 @@ if __name__ == "__main__":
     fig5_measurement_grouping()
     fig6_sparse_observables()
     fig7_joint_eig_comparison()
+    fig8_correlation_sweep()
     print("\nAll figures saved to", FIGDIR)

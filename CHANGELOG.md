@@ -4,6 +4,53 @@ Notable changes to `quantum_al`, by release. Dates are UTC, from git history.
 
 ## [Unreleased]
 
+### Added
+- `quantum_al.acquisition`: multi-property criteria from Bayesian optimal
+  experimental design (joint and marginal EIG, total correlation, whitened
+  trace and maximum eigenvalue), `EnsembleCriterionSelector`, and greedy batch
+  EIG with a (1 - 1/e) guarantee (`GreedyBatchEIGSelector`).
+- `quantum_al.diagnostics`: measures whether the joint and correlation-blind
+  criteria would select different batches, and why.
+- `quantum_al.synthetic`: multi-property problems with tunable cross-property
+  correlation and noise.
+- `quantum_al.loop` and `quantum_al.stats`: the shared pool-based loop,
+  learning curves and AULC, paired tests, bootstrap confidence intervals,
+  effect sizes and Holm-Bonferroni correction.
+- `quantum_al.circuit` measurement-grouping tool and
+  `benchmarks/run_measurement_grouping.py`, which regenerates
+  `results/measurement_grouping.json`.
+- `benchmarks/run_correlation_sweep.py`: a controlled study of when joint
+  acquisition can beat correlation-blind acquisition.
+- Sphinx documentation (`docs/`) with full derivations of every property the
+  tests check, Read the Docs configuration, runnable `examples/`, a
+  `benchmarks/README.md` mapping every result file to its command, and
+  community files (code of conduct, issue and pull request templates).
+
+### Changed
+- `paper.md` and `README.md` rewritten around the information-theoretic
+  criteria and their diagnostics, and every reference in `paper.bib` checked
+  against Crossref or arXiv.
+- `fetch_data` sends an honest `quantum_al` User-Agent; `data_utils` takes a
+  configurable data directory and raises a clear error when data is missing.
+- Baseline fallbacks now emit a `RuntimeWarning` instead of printing, with
+  the same behavior.
+- Outputs of pre-rebuild scripts moved to `results/legacy/`, with a README.
+- Real-data joint-EIG results (`results/joint_eig_experiment*.json`) rerun
+  from a fresh Materials Project download. They now include the per-round
+  joint-versus-marginal selection diagnostics. Two pairs reproduce exactly;
+  in each of the other two a single trial differs slightly, and two reported
+  numbers per pair moved by less than 0.004, with no conclusion changed.
+  Reported p-values are now consistently Holm-corrected.
+- `benchmarks/README.md` documents that exact reproduction needs
+  scikit-learn 1.7.2.
+- Added the correlation-sweep results (`results/correlation_sweep.json`,
+  `figures/fig8_correlation_sweep.pdf`) to the findings, README, paper and
+  `results/SUMMARY.md`.
+
+### Fixed
+- `run_joint_eig_experiment.py` printed "band_gap & formation_energy" in its
+  summary header for every property pair.
+### Earlier unreleased changes
 - Added `src/quantum_al/joint_eig.py`: a joint expected-information-gain
   acquisition score derived from Bayesian experimental design, with a proved
   and numerically-verified total-correlation decomposition theorem, tested

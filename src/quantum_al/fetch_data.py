@@ -4,7 +4,12 @@ bulk_modulus, total_magnetization, e_total (regression), crystal_system
 scale in MP. Features: composition stats (electronegativity, atomic
 radius, atomic mass, row, group) plus MP summary fields (density, volume
 per atom, nsites, nelements, energy above hull, space group).
+
+Requires the ``[data]`` extra (pymatgen) and an ``MP_API_KEY`` environment
+variable. Run as ``python -m quantum_al.fetch_data [--data-dir DIR]``;
+files are written to :func:`quantum_al.data_utils.get_data_dir` by default.
 """
+import argparse
 import json
 import os
 import time
@@ -12,22 +17,23 @@ import urllib.request
 import urllib.parse
 
 import numpy as np
-from pymatgen.core import Composition, Element
 
-API_KEY = os.environ.get("MP_API_KEY")
-if not API_KEY:
-    raise RuntimeError(
-        "Set the MP_API_KEY environment variable to your Materials Project API "
-        "key (https://next-gen.materialsproject.org/api) before running this script."
-    )
+from quantum_al import __version__
+from quantum_al.data_utils import get_data_dir
+
 BASE = "https://api.materialsproject.org/materials/summary/"
-HEADERS = {
-    "X-API-KEY": API_KEY,
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                  "(KHTML, like Gecko) Chrome/120.0 Safari/537.36",
-    "Accept": "application/json",
-}
-DATA_DIR = "./data"
+USER_AGENT = f"quantum_al/{__version__} (+https://github.com/arnavk23/quantum_al)"
+
+
+def _headers():
+    api_key = os.environ.get("MP_API_KEY")
+    if not api_key:
+        raise RuntimeError(
+            "Set the MP_API_KEY environment variable to your Materials Project API "
+            "key (https://next-gen.materialsproject.org/api) before fetching data."
+        )
+    return {"X-API-KEY": api_key, "User-Agent": USER_AGENT, "Accept": "application/json"}
+
 
 COMMON_FIELDS = [
     "material_id", "formula_pretty", "elements", "nelements",
@@ -67,7 +73,7 @@ TASKS = {
 def _get(url, retries=3):
     for attempt in range(retries):
         try:
-            req = urllib.request.Request(url, headers=HEADERS)
+            req = urllib.request.Request(url, headers=_headers())
             with urllib.request.urlopen(req, timeout=30) as r:
                 return json.loads(r.read())
         except Exception as e:
@@ -107,6 +113,8 @@ ELEMENT_PROPS = ["X", "atomic_radius", "atomic_mass", "row", "group"]
 def composition_features(elements):
     """Mean/std/range over element properties for the unique element set
     (MP summary doesn't return stoichiometric fractions cheaply)."""
+    from pymatgen.core import Element  # optional dependency: the [data] extra
+
     vals = {p: [] for p in ELEMENT_PROPS}
     for el_str in elements:
         try:
@@ -163,15 +171,17 @@ def process_task(name, spec, docs):
     return rows
 
 
-def main():
-    os.makedirs(DATA_DIR, exist_ok=True)
+def main(data_dir=None):
+    """Fetch every task and write ``<task>.json`` files to ``data_dir``."""
+    data_dir = data_dir or get_data_dir()
+    os.makedirs(data_dir, exist_ok=True)
     summary = {}
     for name, spec in TASKS.items():
         docs = fetch_task(name, spec)
         rows = process_task(name, spec, docs)
         print(f"  {len(rows)} usable rows with non-null target for {name}")
 
-        out_path = os.path.join(DATA_DIR, f"{name}.json")
+        out_path = os.path.join(data_dir, f"{name}.json")
         with open(out_path, "w") as f:
             json.dump(rows, f)
         summary[name] = len(rows)
@@ -196,15 +206,18 @@ def main():
         row = build_feature_row(doc)
         row["target"] = cs
         rows.append(row)
-    with open(os.path.join(DATA_DIR, "crystal_system.json"), "w") as f:
+    with open(os.path.join(data_dir, "crystal_system.json"), "w") as f:
         json.dump(rows, f)
     summary["crystal_system"] = len(rows)
     print(f"  {len(rows)} usable rows for crystal_system")
 
-    with open(os.path.join(DATA_DIR, "fetch_summary.json"), "w") as f:
+    with open(os.path.join(data_dir, "fetch_summary.json"), "w") as f:
         json.dump(summary, f, indent=2)
     print("\nSummary:", json.dumps(summary, indent=2))
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--data-dir", default=None,
+                        help="output directory (default: quantum_al.data_utils.get_data_dir())")
+    main(parser.parse_args().data_dir)

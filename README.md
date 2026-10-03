@@ -2,64 +2,112 @@
 
 [![Tests](https://github.com/arnavk23/quantum_al/actions/workflows/tests.yml/badge.svg)](https://github.com/arnavk23/quantum_al/actions/workflows/tests.yml)
 
-A Python package implementing and honestly benchmarking two attempts at a
-correlation-aware acquisition function for active learning in materials
-discovery: a joint expected-information-gain score derived from Bayesian
-experimental design (the main result), and an earlier covariance-aware
-quantum-inspired formalism. Both are tested against classical baselines on
-real Materials Project data. See [`paper.md`](paper.md) for the software
-description (JOSS format) and [`papers/`](papers/) for the full research
-manuscript.
+A single DFT calculation returns a band gap, a formation energy and a magnetic
+moment computed from the same electronic structure, so materials properties
+are correlated. Active learning chooses which material to compute next.
+Should that choice take the correlation into account, and when does it help?
+`quantum_al` is a research toolkit for answering that question rigorously:
 
-## Honest summary of findings
+- **Information-theoretic acquisition criteria** from Bayesian optimal
+  experimental design (`quantum_al.acquisition`): the joint expected
+  information gain (EIG), its correlation-blind counterpart, the exact
+  total-correlation term that separates them, unit-invariant A- and
+  E-optimal analogues, and a greedy batch EIG with a (1 − 1/e) guarantee.
+- **Diagnostics** (`quantum_al.diagnostics`) that explain *why* two criteria
+  do or do not lead to different outcomes.
+- **A controlled testbed** (`quantum_al.synthetic`) of multi-property
+  problems with tunable cross-property correlation and noise.
+- **A real-data benchmark harness** on Materials Project properties with
+  nine classical baselines, a shared pool-based loop (`quantum_al.loop`) and
+  paired statistics with Holm-Bonferroni correction (`quantum_al.stats`).
+- **A quantum-inspired covariance formalism** (`quantum_al.operator*`) with a
+  verified Qiskit circuit realization and NISQ cost analysis, kept as an
+  independently evaluated alternative construction.
 
-**Main result: joint expected information gain.** For $K$ real, jointly-labeled
-target properties, `src/quantum_al/joint_eig.py` scores a candidate by
-$\mathrm{JEIG}(x) = \tfrac12\log\det(\Sigma_{\mathrm{pred}}(x) + R)$, the
-ensemble-disagreement estimate of joint expected information gain. We prove
-(and verify numerically to $10^{-8}$) that summing the per-task marginal terms
-and subtracting this joint term always equals the total correlation among the
-$K$ predictive uncertainties, a quantity that is exactly zero when the tasks
-are uncorrelated, in which case the score collapses exactly to ordinary
-per-task ensemble-variance scoring. Tested against that classical-limit
-ablation and against random sampling on four real, independently-measured
-Materials Project property pairs (spanning label correlation $r=-0.37$ to
-$0.33$, $n=49$ to $498$), the joint score **never significantly beats the
-correlation-blind ablation in any of the four pairs**, and beats random
-sampling significantly in only one (the largest, most strongly correlated
-pair). The total-correlation term is measurably non-zero in every pair, so
-the theorem is not vacuous on this data, but it does not translate into a
-reliable accuracy gain.
+Every criterion is tested against its own mathematical properties, and every
+reported number is written to `results/` by a script in `benchmarks/`.
+[`paper.md`](paper.md) is the JOSS software paper; [`papers/`](papers/) holds
+the research manuscripts.
 
-**Earlier attempt: quantum-inspired covariance.** A correctly-implemented,
-unit-tested covariance-aware quantum-inspired formalism
-(`src/quantum_al/operator.py`) was evaluated against 9 standard
-active-learning baselines on 5 real Materials Project regression tasks. As
-originally specified, it loses on 4 of 5 tasks, no paired comparison survives
-Holm-Bonferroni correction, and an ablation shows its covariance term has an
-effect indistinguishable from noise (+0.07% R², vs. trial-to-trial σ of
-5-8%). Diagnosing the cause (the score never sees the downstream model's own
-residuals) and coupling the state encoding to a random forest's per-tree
-disagreement brings it to statistical parity with the best baseline on every
-task, but a further ablation shows the gain comes entirely from the
-disagreement signal, not the quantum-inspired machinery. A real quantum
-circuit realization (Qiskit) confirms the formalism matches its classical
-simulation exactly and characterizes its NISQ cost: hundreds of Pauli
-measurement terms per quantity, cut 4-12x by standard measurement grouping
-and a further 2-3x by building observables sparse from the start.
+## Quickstart
 
-**Across two structurally unrelated attempts, one an analogy and one a
-derivation, correlation-aware aggregation of multiple uncertainty sources
-does not reliably outperform directly measuring ensemble disagreement.**
+```bash
+pip install -e .
+python examples/01_quickstart.py
+```
 
-Full results, diagnosis, and every real number behind the tables and figures:
-[`results/SUMMARY.md`](results/SUMMARY.md).
+```python
+from sklearn.model_selection import train_test_split
+from quantum_al import EnsembleCriterionSelector, make_correlated_tasks, run_active_learning
+from quantum_al.data_utils import standardize
 
-An earlier version of this repository/paper claimed a 35% sample-efficiency
-improvement and p<0.01 significance over 9 baselines, and a formalism that
-worked as originally specified. Those numbers did not reproduce from any code
-in this repository when actually run and have been retracted; everything
-above is what the real, rerun experiments show.
+X, Y, info = make_correlated_tasks(n_samples=300, correlation=0.9, noise=0.3, seed=0)
+X_pool, X_test, Y_pool, Y_test = train_test_split(X, Y, test_size=0.3, random_state=0)
+X_pool, X_test = standardize(X_pool, X_test)
+
+for criterion in ["eig", "marginal_eig"]:
+    selector = EnsembleCriterionSelector(criterion, n_estimators=50, seed=0)
+    curve = run_active_learning(selector, X_pool, Y_pool, X_test, Y_test,
+                                n_initial=20, n_rounds=5, batch_size=8, seed=0)
+    print(criterion, curve.aulc())
+```
+
+Any object with a `select_next_experiments(X_candidates, X_train, Y_train,
+n_select)` method can be benchmarked the same way; see
+[`examples/04_custom_selector.py`](examples/04_custom_selector.py).
+
+## Theory in one paragraph
+
+For an ensemble with predictive covariance Σ(x) over K properties and noise
+variances R, the joint EIG is ½ log det(I + R^{-1/2} Σ R^{-1/2}). It equals
+the sum of the per-property EIGs minus the total correlation
+TC = −½ log det Corr(Σ + R) ≥ 0 (Hadamard's inequality). TC is **second order**
+in the epistemic-to-aleatoric ratio s = Σ_kk / R_k, while each marginal EIG is
+first order. For two properties the bound
+TC ≤ ½ log(1 + s₁s₂ / (1 + s₁ + s₂)) is exact and tight. The joint and
+correlation-blind criteria can therefore rank two candidates differently only
+when their marginal scores are nearly tied. Full derivations are in
+[`docs/theory.rst`](docs/theory.rst), and every property is checked in
+[`tests/test_acquisition.py`](tests/test_acquisition.py).
+
+## Findings
+
+**Joint EIG on real data.** On four real Materials Project property pairs
+(label correlation −0.37 to 0.33, n = 49 to 498), the joint EIG **never
+significantly beats its correlation-blind ablation**, and it beats random
+sampling significantly on only one pair. The total-correlation term is
+measurably non-zero on every pair, but across candidates it varies only 3–9%
+as much as the marginal scores. So the two criteria rank candidates almost
+identically (Spearman ≥ 0.98) and share most of every batch (12.9 to 14.8 of
+15 picks), as the theory predicts.
+
+**Controlled study.** On synthetic two-property problems with signal
+correlation from 0 to 0.99 and two noise levels
+(`benchmarks/run_correlation_sweep.py`), the correlation term grows with
+correlation as predicted, but no joint-versus-marginal difference is
+significant after Holm correction in any of the eight settings. Random
+selection has the highest mean in all eight (never significantly), most
+likely because uncertainty-driven criteria over-sample the low-density tails
+of these problems.
+
+**Quantum-inspired formalism.** Against nine classical baselines on five real
+regression tasks, the formalism as originally specified loses on four, and
+its covariance term has no effect distinguishable from noise. Coupling it to a
+random forest's per-tree disagreement brings it to parity with the best
+baseline, but ablations attribute the gain entirely to the disagreement
+signal, not to the quantum-specific machinery. The Qiskit realization matches
+the classical simulation exactly. Each measured quantity has 528 Pauli terms,
+reduced 4× by qubit-wise-commuting grouping and 12× by general commuting
+grouping; sparse observables cut the total a further 3×, at a small but
+significant cost in accuracy.
+
+Every number, with the details: [`results/SUMMARY.md`](results/SUMMARY.md)
+and [`docs/findings.rst`](docs/findings.rst).
+
+An earlier version of this repository claimed a 35% sample-efficiency
+improvement and p < 0.01 over nine baselines. Those numbers did not reproduce
+from any code in the repository and have been retracted. Everything above
+comes from rerun experiments.
 
 ## Installation
 
@@ -68,81 +116,72 @@ git clone https://github.com/arnavk23/quantum_al.git
 cd quantum_al
 python -m venv .venv
 source .venv/bin/activate        # or .venv\Scripts\activate on Windows
-pip install -e ".[test,circuit]"
+pip install -e ".[test]"
+pytest
 ```
 
-The `circuit` extra installs Qiskit and Qiskit Aer, needed only for
-`src/quantum_al/circuit.py` and the quantum-hardware-realization benchmark.
-The `test` extra installs pytest.
+Optional extras: `data` (pymatgen, for fetching Materials Project data),
+`circuit` (Qiskit and Qiskit Aer), `plot` (matplotlib, for the paper
+figures), `docs` (Sphinx) and `all`. Python 3.10 or newer is required.
 
-## Verify the install
+## Documentation
+
+The documentation in [`docs/`](docs/) covers installation, a quickstart, the
+full theory with proofs, the benchmark protocol and statistics, the findings
+and the API reference. Build it locally with:
 
 ```bash
-pytest tests/ -v
+pip install -e ".[docs]"
+sphinx-build -b html docs docs/_build/html
 ```
-
-This runs the correctness checks referenced throughout the papers: the
-classical-limit reduction proof (`tests/test_operator.py`), the joint-EIG
-total-correlation decomposition proof (`tests/test_joint_eig.py`), the
-circuit-vs-classical exact-match check (`tests/test_circuit.py`, skipped if
-Qiskit is not installed), and smoke tests for all 9 baselines
-(`tests/test_baselines.py`).
 
 ## Repository structure
 
 ```
-src/quantum_al/       the installable package
-  joint_eig.py            main result: joint expected-information-gain score + its theorem
-  operator.py             earlier attempt: covariance-aware quantum-inspired formalism (Eq. 1-6)
-  operator_v2.py           two failed narrow fix attempts (domain grouping, importance weighting)
-  operator_v3.py           the residual-coupled fix that reaches parity
-  operator_sparse.py       sparse-by-construction observables for the quantum formalism
-  circuit.py               real Qiskit circuit realization + NISQ resource tools
-  baselines.py             9 classical active-learning acquisition strategies
-  data_utils.py            load real Materials Project data, incl. multi-property inner joins
-  fetch_data.py            (re)fetch data from the Materials Project API
-
-benchmarks/            runnable scripts that produced every table/figure
-  run_joint_eig_experiment.py    main result: 4-pair real multi-property test
-  run_primary_benchmark.py       quantum-formalism primary comparison + significance
-  run_improvement_attempt.py     the two failed narrow fixes
-  run_v3_test.py / run_v3_ablation.py / run_v3_all_tasks.py   the residual-coupled fix + its ablation
-  run_quantum_circuit_experiment.py   NISQ feasibility characterization
-  run_sparse_observable_experiment.py   sparse-vs-dense observable comparison
-  make_paper_figures.py          regenerates figures/*.pdf from results/*.json
-
+src/quantum_al/
+  acquisition.py       multi-property EIG criteria, total correlation, greedy batch EIG
+  diagnostics.py       why two criteria do or do not select different batches
+  synthetic.py         multi-property problems with tunable correlation and noise
+  loop.py              shared pool-based active-learning loop, learning curves
+  stats.py             paired tests, bootstrap CIs, effect sizes, Holm-Bonferroni
+  joint_eig.py         the original joint-EIG selector and its correlation-blind ablation
+  baselines.py         nine classical single-property acquisition strategies
+  operator*.py         the quantum-inspired formalism and its variants
+  circuit.py           Qiskit circuit realization, measurement grouping, NISQ costs
+  data_utils.py        loading real Materials Project data, multi-property joins
+  fetch_data.py        (re)fetching data from the Materials Project API
+examples/              runnable examples, from quickstart to real data
+benchmarks/            the scripts behind every result (see benchmarks/README.md)
+results/               JSON output of every benchmark; legacy/ holds pre-rebuild outputs
+figures/               paper figures, drawn from results/ by benchmarks/make_paper_figures.py
+docs/                  Sphinx documentation
 tests/                 pytest suite, run in CI on every push
-papers/                 full research manuscript (npj-Computational-Materials-style)
-                        plus an IEEE-conference-style draft, superseded prior
-                        drafts, and reviewer feedback, kept for provenance
-figures/                figures embedded in the papers, generated from results/ (tracked in git)
-results/                raw JSON output backing every number in the papers (tracked in git; regenerate via benchmarks/)
-data/                   real Materials Project data (gitignored; regenerate via src/quantum_al/fetch_data.py)
+papers/                research manuscripts and their provenance
+data/                  Materials Project data (gitignored; see below)
 ```
 
-## Regenerating the data and results
+## Reproducing the results
+
+[`benchmarks/README.md`](benchmarks/README.md) lists the exact command behind
+every file in `results/`. In short:
 
 ```bash
-export MP_API_KEY=your_materials_project_api_key   # https://next-gen.materialsproject.org/api
-python -m quantum_al.fetch_data
-python benchmarks/run_joint_eig_experiment.py --tasks band_gap formation_energy --n-trials 5 --out joint_eig_experiment.json
-python benchmarks/run_joint_eig_experiment.py --tasks formation_energy magnetic_moment --n-trials 5 --out joint_eig_experiment_replication.json
-python benchmarks/run_joint_eig_experiment.py --tasks band_gap magnetic_moment --n-trials 5 --out joint_eig_experiment_pair_bg_mm.json
-python benchmarks/run_joint_eig_experiment.py --tasks bulk_modulus dielectric_constant --n-trials 5 --n0 15 --t-iters 5 --batch-size 3 --out joint_eig_experiment_pair_bm_dc.json
-python benchmarks/run_primary_benchmark.py --stage all
-python benchmarks/run_v3_all_tasks.py
-python benchmarks/run_quantum_circuit_experiment.py   # needs the [circuit] extra
+export MP_API_KEY=your_key            # https://next-gen.materialsproject.org/api
+pip install -e ".[data,circuit,plot]"
+python -m quantum_al.fetch_data       # real-data experiments only
+python benchmarks/run_correlation_sweep.py   # synthetic, no data needed
 python benchmarks/make_paper_figures.py
 ```
 
 ## Citation
 
-See [`CITATION.cff`](CITATION.cff), or cite the accompanying manuscript once
-published (see [`papers/`](papers/) for current drafts).
+See [`CITATION.cff`](CITATION.cff).
 
 ## Contributing
 
-See [`CONTRIBUTING.md`](CONTRIBUTING.md).
+Contributions, bug reports and questions are welcome. See
+[`CONTRIBUTING.md`](CONTRIBUTING.md) and the
+[code of conduct](CODE_OF_CONDUCT.md).
 
 ## Contact
 

@@ -10,7 +10,14 @@ score is a meaningful, distinct question from per-property scalar
 uncertainty. Protocol constants match run_primary_benchmark.py for
 consistency (N0=50, T=8, batch=15, 5 trials, 30% held-out test set).
 
-Usage: python benchmarks/run_joint_eig_experiment.py
+The default methods (Joint-EIG, Marginal-Sum, Random) reproduce the
+published results/joint_eig_experiment*.json. ``--extended`` adds the
+greedy batch-EIG selector and the unit-invariant trace (A-optimal-like)
+and max-eigenvalue (E-optimal-like) criteria from quantum_al.acquisition;
+every method is compared against Joint-EIG with Holm-Bonferroni
+correction across the whole family.
+
+Usage: python benchmarks/run_joint_eig_experiment.py [--extended]
 """
 import argparse
 import json
@@ -19,8 +26,6 @@ import sys
 import time
 
 import numpy as np
-from scipy import stats
-from sklearn.metrics import r2_score
 from sklearn.model_selection import train_test_split
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -28,11 +33,14 @@ ROOT_DIR = os.path.dirname(SCRIPT_DIR)
 RESULTS_DIR = os.path.join(ROOT_DIR, "results")
 sys.path.insert(0, SCRIPT_DIR)
 
+from quantum_al.acquisition import EnsembleCriterionSelector, GreedyBatchEIGSelector  # noqa: E402
 from quantum_al.data_utils import load_multi_task, standardize  # noqa: E402
+from quantum_al.diagnostics import criterion_disagreement  # noqa: E402
 from quantum_al.joint_eig import (  # noqa: E402
-    JointEIGSelector, MarginalSumSelector,
-    predictive_covariance, oob_residual_variance, total_correlation_gap,
+    JointEIGSelector, MarginalSumSelector, predictive_covariance, total_correlation_gap,
 )
+from quantum_al.loop import LearningCurve, run_active_learning  # noqa: E402
+from quantum_al.stats import holm_bonferroni, paired_comparison  # noqa: E402
 
 os.makedirs(RESULTS_DIR, exist_ok=True)
 
@@ -52,82 +60,55 @@ class RandomSelector:
         return idx, np.zeros(len(X_candidates)), {}
 
 
-def holm_bonferroni(pvals, alpha=0.05):
-    m = len(pvals)
-    order = np.argsort(pvals)
-    adj = np.empty(m)
-    running_max = 0.0
-    for rank, idx in enumerate(order):
-        factor = m - rank
-        val = pvals[idx] * factor
-        running_max = max(running_max, val)
-        adj[idx] = min(running_max, 1.0)
-    reject = adj < alpha
-    return adj.tolist(), reject.tolist()
+def _track_joint_diagnostics(batch_size):
+    """on_round hook: total-correlation gap and joint-vs-marginal selection
+    disagreement, from the acquisition forest the selector already fit."""
+    def hook(it, info, X_candidates):
+        Sigma = predictive_covariance(info["forest"], X_candidates)
+        out = criterion_disagreement(Sigma, info["R"], batch_size)
+        out["mean_gap"] = float(np.mean(total_correlation_gap(Sigma, info["R"])))
+        return out
+    return hook
 
 
 def run_al_trial(method_factory, X_pool, Y_pool, X_test, Y_test, trial_seed,
                   n0=N0_DEFAULT, t_iters=T_ITERS_DEFAULT, batch_size=BATCH_SIZE_DEFAULT,
                   method_seed_offset=0, track_gap=False):
-    rng = np.random.RandomState(trial_seed)
-    n_pool = X_pool.shape[0]
-    perm = rng.permutation(n_pool)
-    labeled_idx = perm[:n0].tolist()
-    remaining = perm[n0:].tolist()
-
+    # Random selection uses the global NumPy RNG; seed it per (trial, method).
     np.random.seed(trial_seed * 10007 + method_seed_offset)
     method = method_factory()
-
-    iterations, r2_joint, r2_per_task, n_labeled_list, gaps = [], [], [], [], []
-    error = None
+    error, curve = None, LearningCurve()
     try:
-        from sklearn.ensemble import RandomForestRegressor
-        for it in range(t_iters + 1):
-            X_train = X_pool[labeled_idx]
-            Y_train = Y_pool[labeled_idx]
-            rf = RandomForestRegressor(n_estimators=100, random_state=trial_seed, n_jobs=-1)
-            rf.fit(X_train, Y_train)
-            pred = rf.predict(X_test)
-            per_task = r2_score(Y_test, pred, multioutput="raw_values")
-            joint_r2 = float(np.mean(per_task))
-
-            iterations.append(it)
-            r2_joint.append(joint_r2)
-            r2_per_task.append([float(v) for v in per_task])
-            n_labeled_list.append(len(labeled_idx))
-
-            if it == t_iters or len(remaining) == 0:
-                break
-
-            X_candidates = X_pool[remaining]
-            sel_idx, scores, info = method.select_next_experiments(
-                X_candidates, X_train, Y_train, n_select=min(batch_size, len(remaining))
-            )
-
-            if track_gap and "forest" in info:
-                Sigma = predictive_covariance(info["forest"], X_candidates)
-                gap = total_correlation_gap(Sigma, info["R"])
-                gaps.append(float(np.mean(gap)))
-
-            sel_idx = np.asarray(sel_idx).astype(int)
-            chosen_global = [remaining[i] for i in sel_idx]
-            labeled_idx.extend(chosen_global)
-            remaining = [i for i in remaining if i not in set(chosen_global)]
-    except Exception as e:
+        curve = run_active_learning(
+            method, X_pool, Y_pool, X_test, Y_test, n_initial=n0, n_rounds=t_iters,
+            batch_size=batch_size, seed=trial_seed,
+            on_round=_track_joint_diagnostics(batch_size) if track_gap else None,
+        )
+    except Exception as e:  # recorded and excluded from the summary, never imputed
         error = f"{type(e).__name__}: {e}"
 
     return {
         "trial_seed": trial_seed,
-        "iteration": iterations,
-        "r2_joint": r2_joint,
-        "r2_per_task": r2_per_task,
-        "n_labeled": n_labeled_list,
-        "mean_total_correlation_gap": gaps,
+        "iteration": list(range(len(curve.r2))),
+        "r2_joint": curve.r2,
+        "r2_per_task": curve.r2_per_task,
+        "n_labeled": curve.n_labeled,
+        "aulc": curve.aulc() if len(curve.r2) > 1 else None,
+        "mean_total_correlation_gap": [d["mean_gap"] for d in curve.diagnostics],
+        "selection_diagnostics": curve.diagnostics,
         "error": error,
     }
 
 
-def main(tasks, n_trials, out_name, n0=N0_DEFAULT, t_iters=T_ITERS_DEFAULT, batch_size=BATCH_SIZE_DEFAULT):
+EXTENDED_FACTORIES = {
+    "Greedy-Batch-EIG": lambda: GreedyBatchEIGSelector(n_estimators=N_ESTIMATORS, seed=0),
+    "Trace": lambda: EnsembleCriterionSelector("trace", n_estimators=N_ESTIMATORS, seed=0),
+    "Max-Eigenvalue": lambda: EnsembleCriterionSelector("max_eigenvalue", n_estimators=N_ESTIMATORS, seed=0),
+}
+
+
+def main(tasks, n_trials, out_name, n0=N0_DEFAULT, t_iters=T_ITERS_DEFAULT, batch_size=BATCH_SIZE_DEFAULT,
+         extended=False):
     trial_seeds = list(range(n_trials))
     print("=" * 70)
     print(f"Joint-EIG experiment: {tasks[0]} + {tasks[1]} (n_trials={n_trials}, "
@@ -144,6 +125,9 @@ def main(tasks, n_trials, out_name, n0=N0_DEFAULT, t_iters=T_ITERS_DEFAULT, batc
         "Random": lambda: RandomSelector(),
     }
     seed_offsets = {"Joint-EIG": 0, "Marginal-Sum": 1, "Random": 2}
+    if extended:
+        factories.update(EXTENDED_FACTORIES)
+        seed_offsets.update({name: 3 + i for i, name in enumerate(EXTENDED_FACTORIES)})
 
     out = {
         "config": {
@@ -189,30 +173,28 @@ def main(tasks, n_trials, out_name, n0=N0_DEFAULT, t_iters=T_ITERS_DEFAULT, batc
         }
     out["summary"] = summary
 
-    # paired stats: Joint-EIG vs Marginal-Sum, Joint-EIG vs Random
+    # paired stats: Joint-EIG vs every other method, one Holm-Bonferroni family
     jeig = np.array(summary["Joint-EIG"]["final_joint_r2_per_trial"])
     comparisons = {}
     raw_pvals, names_in_order = [], []
-    for name in ["Marginal-Sum", "Random"]:
+    for name in [m for m in factories if m != "Joint-EIG"]:
         base = np.array(summary[name]["final_joint_r2_per_trial"])
         n = min(len(jeig), len(base))
-        diff = jeig[:n] - base[:n]
-        t_stat, p_val = stats.ttest_rel(jeig[:n], base[:n])
-        try:
-            shapiro_stat, shapiro_p = stats.shapiro(diff) if n >= 3 else (None, None)
-        except Exception:
-            shapiro_stat, shapiro_p = (None, None)
+        pc = paired_comparison(jeig[:n], base[:n])
         comparisons[name] = {
             "n_paired": n,
-            "joint_eig_mean": float(np.mean(jeig[:n])),
-            "baseline_mean": float(np.mean(base[:n])),
-            "mean_diff": float(np.mean(diff)),
-            "t_statistic": float(t_stat),
-            "p_value_raw": float(p_val),
-            "shapiro_p": float(shapiro_p) if shapiro_p is not None else None,
-            "joint_eig_wins": bool(np.mean(diff) > 0),
+            "joint_eig_mean": pc["mean_a"],
+            "baseline_mean": pc["mean_b"],
+            "mean_diff": pc["mean_diff"],
+            "ci95_mean_diff": pc["ci95_diff"],
+            "effect_size_dz": pc["effect_size_dz"],
+            "t_statistic": pc["t_statistic"],
+            "p_value_raw": pc["p_value_t"],
+            "p_value_wilcoxon": pc["p_value_wilcoxon"],
+            "shapiro_p": pc["shapiro_p"],
+            "joint_eig_wins": bool(pc["mean_diff"] > 0),
         }
-        raw_pvals.append(p_val)
+        raw_pvals.append(pc["p_value_t"] if pc["p_value_t"] is not None else 1.0)
         names_in_order.append(name)
 
     adj, reject = holm_bonferroni(raw_pvals, alpha=0.05)
@@ -232,12 +214,21 @@ def main(tasks, n_trials, out_name, n0=N0_DEFAULT, t_iters=T_ITERS_DEFAULT, batc
                 ">0 confirms the two tasks' epistemic uncertainties are "
                 "genuinely correlated across the ensemble, not just their labels",
     }
+    diags = [d for t in jeig_trials for d in t["selection_diagnostics"]]
+    out["selection_diagnostics_summary"] = {
+        key: float(np.mean([d[key] for d in diags])) if diags else None
+        for key in ("topk_overlap", "spearman", "tc_spread_ratio", "median_snr")
+    }
+    out["selection_diagnostics_summary"]["note"] = (
+        "Joint-EIG vs Marginal-Sum on the same candidates and forest, averaged over "
+        "rounds and trials: topk_overlap=1 means both criteria would pick the same batch"
+    )
 
     with open(os.path.join(RESULTS_DIR, out_name), "w") as f:
         json.dump(out, f, indent=2)
 
     print("\n" + "=" * 70)
-    print("SUMMARY (final joint R^2, mean of band_gap & formation_energy R^2)")
+    print(f"SUMMARY (final joint R^2, mean of {tasks[0]} & {tasks[1]} R^2)")
     print("=" * 70)
     for name, s in summary.items():
         print(f"  {name:14s} {s['final_joint_r2_mean']:.4f} +/- {s['final_joint_r2_std']:.4f}")
@@ -249,6 +240,11 @@ def main(tasks, n_trials, out_name, n0=N0_DEFAULT, t_iters=T_ITERS_DEFAULT, batc
           f"{out['total_correlation_gap_stats']['mean']:.4f} / "
           f"{out['total_correlation_gap_stats']['min']:.4f} / "
           f"{out['total_correlation_gap_stats']['max']:.4f}")
+    sd = out["selection_diagnostics_summary"]
+    if sd["topk_overlap"] is not None:
+        print(f"Joint vs marginal batch overlap (Jaccard): {sd['topk_overlap']:.3f}, "
+              f"rank correlation: {sd['spearman']:.3f}, median epistemic/aleatoric ratio: "
+              f"{sd['median_snr']:.3f}")
     print(f"\nSaved results/{out_name}")
     return out
 
@@ -261,5 +257,8 @@ if __name__ == "__main__":
     parser.add_argument("--n0", type=int, default=N0_DEFAULT)
     parser.add_argument("--t-iters", type=int, default=T_ITERS_DEFAULT)
     parser.add_argument("--batch-size", type=int, default=BATCH_SIZE_DEFAULT)
+    parser.add_argument("--extended", action="store_true",
+                        help="also run greedy batch EIG and the trace / max-eigenvalue criteria")
     args = parser.parse_args()
-    main(args.tasks, args.n_trials, args.out, n0=args.n0, t_iters=args.t_iters, batch_size=args.batch_size)
+    main(args.tasks, args.n_trials, args.out, n0=args.n0, t_iters=args.t_iters,
+         batch_size=args.batch_size, extended=args.extended)
