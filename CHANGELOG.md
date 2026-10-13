@@ -6,6 +6,8 @@ Notable changes to `quantum_al`, by release. Dates are UTC, from git history.
 
 ## [0.2.0] - 2026-10-14
 
+Archived on Zenodo: [10.5281/zenodo.23351262](https://doi.org/10.5281/zenodo.23351262).
+
 ### Added
 - `quantum_al.acquisition`: multi-property criteria from Bayesian optimal
   experimental design (joint and marginal EIG, total correlation, whitened

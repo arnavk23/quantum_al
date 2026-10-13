@@ -3,6 +3,7 @@
 [![Tests](https://github.com/arnavk23/quantum_al/actions/workflows/tests.yml/badge.svg)](https://github.com/arnavk23/quantum_al/actions/workflows/tests.yml)
 [![Documentation](https://readthedocs.org/projects/quantum-al/badge/?version=latest)](https://quantum-al.readthedocs.io/en/latest/)
 [![PyPI](https://img.shields.io/pypi/v/quantum-al)](https://pypi.org/project/quantum-al/)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23351261.svg)](https://doi.org/10.5281/zenodo.23351261)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
 
