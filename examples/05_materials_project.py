@@ -18,7 +18,8 @@ from quantum_al.diagnostics import criterion_disagreement
 try:
     X, Y, meta = load_multi_task(["band_gap", "formation_energy"])
 except FileNotFoundError as e:
-    sys.exit(f"Skipping: {e}")
+    print(f"Skipping: {e}")
+    sys.exit(0)
 
 print(f"{len(X)} materials with both properties computed")
 X_pool, X_test, Y_pool, Y_test = train_test_split(X, Y, test_size=0.3, random_state=0)
