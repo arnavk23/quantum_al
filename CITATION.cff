@@ -1,6 +1,6 @@
 cff-version: 1.2.0
-message: "If you use this code or cite its findings, please cite it as below."
-title: "quantum_al: Quantum-Inspired Active Learning for Materials Discovery"
+message: "If you use this software, please cite it as below."
+title: "quantum_al: correlation-aware active learning for materials discovery"
 type: software
 authors:
   - family-names: "Kapoor"
@@ -12,28 +12,17 @@ license: MIT
 keywords:
   - active learning
   - materials discovery
-  - quantum-inspired algorithms
-  - information theory
+  - Bayesian experimental design
+  - expected information gain
   - uncertainty quantification
-  - negative result
+  - quantum-inspired algorithms
 abstract: >-
-  Implementation and evaluation of two correlation-aware acquisition scores
-  for multi-property active learning in materials discovery: a joint
-  expected-information-gain score derived from Bayesian experimental design,
-  with a proved and numerically-verified decomposition theorem, and an
-  earlier covariance-aware quantum-inspired uncertainty formalism. Includes
-  rigorous, real-data (Materials Project) benchmarks, including a four-pair
-  multi-property test and a nine-baseline single-property benchmark, ablation
-  studies, and a real quantum circuit realization. The accompanying paper
-  reports both approaches honestly: neither reliably outperforms directly
-  measuring ensemble disagreement, and it diagnoses why.
-preferred-citation:
-  type: article
-  title: "Correlation-aware information gain does not outperform ensemble disagreement in materials active learning"
-  authors:
-    - family-names: "Kapoor"
-      given-names: "Arnav"
-      orcid: "https://orcid.org/0009-0007-9818-7908"
-      affiliation: "Indian Institute of Science Education and Research Bhopal"
-  status: preprint
-  year: 2026
+  A Python package for building and rigorously benchmarking multi-property
+  acquisition criteria for active learning in materials discovery:
+  information-theoretic criteria from Bayesian optimal experimental design
+  (joint and correlation-blind expected information gain, total correlation,
+  greedy batch EIG), diagnostics that explain when such criteria can differ,
+  a synthetic testbed with tunable cross-property correlation, a real-data
+  Materials Project benchmark harness with nine classical baselines and
+  corrected paired statistics, and a quantum-inspired covariance formalism
+  with a verified Qiskit circuit realization.

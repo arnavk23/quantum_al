@@ -9,6 +9,7 @@ __pycache__/
 build/
 dist/
 .pytest_cache/
+.coverage
 
 # Jupyter Notebooks
 .ipynb_checkpoints/
@@ -27,8 +28,8 @@ dist/
 !/data/README.md
 
 # results/ and figures/ ARE tracked: they are the evidence backing every
-# number in papers/, and results/SUMMARY.md is the human-readable source
-# of truth. Do not gitignore these.
+# number in papers/ and docs/findings.rst; results/README.md indexes them.
+# Do not gitignore these.
 
 # VS Code
 .vscode/
@@ -37,4 +38,5 @@ dist/
 .DS_Store
 Thumbs.db
 
-ieee-standard/
+# Sphinx build output
+docs/_build/

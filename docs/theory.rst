@@ -27,9 +27,9 @@ where :math:`\Sigma(x)` is the *epistemic* uncertainty (what more data could
 remove) and :math:`R` the *aleatoric* noise (what it could not). In the
 package, :math:`\Sigma(x)` is the covariance of the :math:`M` per-tree
 predictions of a multi-output random forest at :math:`x`
-(:func:`quantum_al.joint_eig.predictive_covariance`) and :math:`r_k` the
+(:func:`quantum_al.acquisition.predictive_covariance`) and :math:`r_k` the
 out-of-bag residual variance of target :math:`k`
-(:func:`quantum_al.joint_eig.oob_residual_variance`). Ensemble disagreement as
+(:func:`quantum_al.acquisition.oob_residual_variance`). Ensemble disagreement as
 a stand-in for the epistemic posterior is the same approximation behind
 query-by-committee and deep-ensemble active learning; see *Limitations*
 below.
@@ -58,10 +58,10 @@ per-target terms are :math:`\mathrm{EIG}_k = \tfrac12 \log(1 + s_k)`, and
 :math:`\sum_k \mathrm{EIG}_k` is the natural *correlation-blind* criterion:
 each property's uncertainty is scored independently and summed.
 
-:func:`quantum_al.joint_eig.joint_eig_score` returns
-:math:`\tfrac12\log\det(\Sigma + R)`, which differs from
-:math:`\mathrm{EIG}` by the candidate-independent constant
-:math:`\tfrac12 \log\det R`; both induce the same ranking.
+The unnormalized score :math:`\tfrac12\log\det(\Sigma + R)`, common in
+the ensemble active-learning literature, differs from :math:`\mathrm{EIG}`
+by the candidate-independent constant :math:`\tfrac12 \log\det R`, so both
+induce the same ranking.
 
 Proposition 1: total-correlation decomposition
 ----------------------------------------------
@@ -231,7 +231,7 @@ diversity the criterion can see.
 The quantum-inspired formalism
 ------------------------------
 
-:mod:`quantum_al.operator` implements an earlier, independently evaluated
+:mod:`quantum_al.quantum_inspired` implements an earlier, independently evaluated
 construction with the same goal of aggregating several uncertainty sources
 in a correlation-aware way, by analogy with quantum measurement rather than
 by derivation. A standardized feature vector :math:`x \in \mathbb R^d` is
@@ -256,8 +256,8 @@ aggregated with complex weights :math:`\alpha_k` into
    + \sum_{k \ne l} \operatorname{Re}(\alpha_k^* \alpha_l) \operatorname{Cov}_\psi(O_k, O_l)\Big)^{1/2}.
 
 With commuting observables, real weights and no covariance term this
-reduces exactly to a weighted sum of classical variances (checked by
-:func:`quantum_al.operator.self_test`). :mod:`quantum_al.circuit` realizes
+reduces exactly to a weighted sum of classical variances (checked in
+``tests/test_quantum_inspired.py``). :mod:`quantum_al.circuit` realizes
 :math:`|\psi\rangle` by amplitude encoding on :math:`\lceil \log_2 d\rceil`
 qubits and estimates each expectation from a Pauli decomposition; it matches
 the classical formula to floating-point precision in the noiseless limit.

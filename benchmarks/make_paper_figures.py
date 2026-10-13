@@ -4,8 +4,9 @@ saved under results/."""
 import json
 import os
 
-import numpy as np
 import matplotlib
+import numpy as np
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
@@ -154,7 +155,6 @@ def fig4_shot_convergence():
         qc = json.load(f)
 
     shots = sorted([int(k) for k in qc["shot_sweep"].keys()])
-    mae = [qc["shot_sweep"][str(s)]["mae_vs_exact"] for s in shots]
     tau = [qc["shot_sweep"][str(s)]["kendall_tau"] for s in shots]
     overlap = [qc["shot_sweep"][str(s)]["top_b_overlap_frac"] * 100 for s in shots]
 

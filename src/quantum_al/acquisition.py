@@ -40,20 +40,17 @@ numerically in ``tests/test_acquisition.py``:
    submodular, so :func:`greedy_batch_eig` is within ``1 - 1/e`` of the
    optimal batch (Nemhauser et al., 1978).
 
-The scores in :mod:`quantum_al.joint_eig` (``1/2 log det(Sigma + R)``) are
-the same criteria up to a candidate-independent additive constant
-(``1/2 log det R``), so they induce identical rankings.
+``Sigma(x)`` and ``R`` come from a random forest
+(:func:`fit_ensemble`, :func:`predictive_covariance`); any ensemble that
+provides per-member predictions can be used with the functions directly.
 """
 import numpy as np
 from sklearn.ensemble import RandomForestRegressor
 
-from quantum_al.joint_eig import (
-    oob_residual_variance,
-    per_tree_predictions,
-    predictive_covariance,
-)
-
 __all__ = [
+    "per_tree_predictions",
+    "predictive_covariance",
+    "oob_residual_variance",
     "expected_information_gain",
     "marginal_information_gains",
     "marginal_information_gain_sum",
@@ -91,6 +88,31 @@ def _whiten(Sigma, R):
     return Sigma * w[None, :, None] * w[None, None, :]
 
 
+def per_tree_predictions(forest, X):
+    """Predictions of every tree of a fitted forest, shape (M, n, K)."""
+    preds = np.stack([est.predict(X) for est in forest.estimators_], axis=0)
+    return preds[:, :, None] if preds.ndim == 2 else preds
+
+
+def predictive_covariance(forest, X):
+    """Epistemic covariance ``Sigma(x)`` of the per-tree predictions at each
+    row of ``X``, shape (n, K, K)."""
+    preds = per_tree_predictions(forest, X)
+    centered = preds - preds.mean(axis=0, keepdims=True)
+    return np.einsum("mik,mil->ikl", centered, centered) / max(preds.shape[0] - 1, 1)
+
+
+def oob_residual_variance(forest, X, Y):
+    """Per-target out-of-bag residual variance ``R``, shape (K,): the noise
+    floor of a forest fitted with ``oob_score=True`` on ``(X, Y)``."""
+    if not hasattr(forest, "oob_prediction_"):
+        raise ValueError("forest must be fit with oob_score=True")
+    resid = np.asarray(Y) - forest.oob_prediction_
+    if resid.ndim == 1:
+        resid = resid[:, None]
+    return np.maximum(resid.var(axis=0), 1e-8)
+
+
 def expected_information_gain(Sigma, R):
     """Joint expected information gain ``I(y; f)`` in nats, per candidate.
 
@@ -123,11 +145,7 @@ def marginal_information_gains(Sigma, R):
 
 
 def marginal_information_gain_sum(Sigma, R):
-    """Correlation-blind criterion ``sum_k EIG_k``, shape (n,).
-
-    Ranks candidates identically to
-    :func:`quantum_al.joint_eig.marginal_sum_score`.
-    """
+    """Correlation-blind criterion ``sum_k EIG_k``, shape (n,)."""
     return marginal_information_gains(Sigma, R).sum(axis=1)
 
 
@@ -278,9 +296,8 @@ def fit_ensemble(X_train, Y_train, n_estimators=200, seed=0):
     Returns
     -------
     forest : RandomForestRegressor
-        Fitted with ``oob_score=True``; use
-        :func:`quantum_al.joint_eig.predictive_covariance` or
-        :func:`quantum_al.joint_eig.per_tree_predictions` on it.
+        Fitted with ``oob_score=True``; pass it to
+        :func:`predictive_covariance` or :func:`per_tree_predictions`.
     R : ndarray, shape (K,)
         Out-of-bag residual variance per target (the noise floor).
     """
@@ -312,10 +329,7 @@ class EnsembleCriterionSelector:
     Implements the package-wide selector interface
     ``select_next_experiments(X_candidates, X_train, Y_train, n_select)
     -> (selected_idx, scores, info)``. ``Y_train`` may be 1-D (single
-    target) or ``(n, K)``. ``criterion="eig"`` reproduces the ranking of
-    :class:`quantum_al.joint_eig.JointEIGSelector` and
-    ``criterion="marginal_eig"`` that of
-    :class:`quantum_al.joint_eig.MarginalSumSelector` for the same seed.
+    target) or ``(n, K)``.
     """
 
     def __init__(self, criterion="eig", n_estimators=200, seed=0, name=None):

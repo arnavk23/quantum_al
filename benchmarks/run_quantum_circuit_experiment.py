@@ -17,14 +17,23 @@ sys.path.insert(0, SCRIPT_DIR)  # only for sibling benchmarks/*.py scripts below
 # which are standalone (not part of the installed quantum_al package);
 # quantum_al.* imports themselves work without this once pip-installed.
 
-from quantum_al.data_utils import load_task, standardize  # noqa: E402
-from quantum_al.operator import (  # noqa: E402
-    make_observable, default_feature_groups, encode_states, feature_phase_weights,
-)
 from quantum_al.circuit import (  # noqa: E402
-    amplitude_encoding_circuit, pad_observable, pauli_decompose,
-    exact_circuit_expectation, shot_based_expectation,
-    transpiled_resource_report, make_depolarizing_noise_model, n_qubits_for_dim,
+    amplitude_encoding_circuit,
+    exact_circuit_expectation,
+    make_depolarizing_noise_model,
+    n_qubits_for_dim,
+    pad_observable,
+    pauli_decompose,
+    shot_based_expectation,
+    transpiled_resource_report,
+)
+from quantum_al.data_utils import load_task, standardize  # noqa: E402
+from quantum_al.quantum_inspired import (  # noqa: E402
+    QuantumObservableBank,
+    default_feature_groups,
+    encode_states,
+    feature_phase_weights,
+    make_observable,
 )
 
 N_CANDIDATES = 30
@@ -58,7 +67,7 @@ def u_total_from_expectations(names, alpha_dict, coeff, exp_O, exp_O2, exp_sym):
     for k in names:
         var_term += (abs(coeff[k]) ** 2) * max(0.0, exp_O2[k] - exp_O[k] ** 2)
     cov_term = 0.0
-    for i, k in enumerate(names):
+    for k in names:
         for l in names:
             if k == l:
                 continue
@@ -78,15 +87,17 @@ def compute_u_total_circuit(alpha, names, O_pad, coeff, qc_cache, mode="exact", 
             exp_O[k] = exact_circuit_expectation(qc, op_k)
             exp_O2[k] = exact_circuit_expectation(qc, op_k2)
         else:
-            exp_O[k] = shot_based_expectation(qc, op_k, shots, noise_model, s); s += 1
-            exp_O2[k] = shot_based_expectation(qc, op_k2, shots, noise_model, s); s += 1
+            exp_O[k] = shot_based_expectation(qc, op_k, shots, noise_model, s)
+            exp_O2[k] = shot_based_expectation(qc, op_k2, shots, noise_model, s + 1)
+            s += 2
     for i, k in enumerate(names):
         for l in names[i + 1:]:
             op_sym = qc_cache[("sym", k, l)]
             if mode == "exact":
                 v = exact_circuit_expectation(qc, op_sym)
             else:
-                v = shot_based_expectation(qc, op_sym, shots, noise_model, s); s += 1
+                v = shot_based_expectation(qc, op_sym, shots, noise_model, s)
+                s += 1
             exp_sym[(k, l)] = v
             exp_sym[(l, k)] = v
     return u_total_from_expectations(names, alpha, coeff, exp_O, exp_O2, exp_sym)
@@ -132,6 +143,11 @@ def main():
         u = compute_u_total_circuit(alphas[i], names, O_pad, coeff, qc_cache, mode="exact")
         exact_scores.append(u)
     exact_scores = np.array(exact_scores)
+    classical = QuantumObservableBank(d, groups, coefficients=coeff, seed=1).scores(alphas)
+    max_dev = float(np.max(np.abs(exact_scores - classical)))
+    if max_dev > 1e-6:
+        raise RuntimeError(f"circuit U_total deviates from the classical formula by {max_dev:.2e}")
+    print(f"Circuit matches the classical formula (max deviation {max_dev:.1e})")
     exact_ranking = np.argsort(exact_scores)[::-1]
     exact_top_b = set(exact_ranking[:BATCH_SIZE].tolist())
     print("Exact scores range:", exact_scores.min(), exact_scores.max())
@@ -179,7 +195,8 @@ def main():
     noisy_top_b = set(noisy_ranking[:BATCH_SIZE].tolist())
     overlap_noisy = len(exact_top_b & noisy_top_b) / BATCH_SIZE
     dt = time.time() - t0
-    print(f"  MAE={mae_noisy:.4f}  Kendall-tau={tau_noisy:.4f}  top-{BATCH_SIZE} overlap={overlap_noisy:.2f}  ({dt:.1f}s)")
+    print(f"  MAE={mae_noisy:.4f}  Kendall-tau={tau_noisy:.4f}  "
+          f"top-{BATCH_SIZE} overlap={overlap_noisy:.2f}  ({dt:.1f}s)")
     results["noisy_10000shots_p1_0.001_p2_0.01"] = {
         "mae_vs_exact": mae_noisy, "kendall_tau": float(tau_noisy), "top_b_overlap_frac": overlap_noisy,
         "wall_time_sec": dt,

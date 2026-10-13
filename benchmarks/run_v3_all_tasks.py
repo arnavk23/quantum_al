@@ -1,5 +1,6 @@
-"""v3 + its ablation on all 5 tasks, same protocol as the primary
-benchmark, plus paired t-tests against each task's best baseline."""
+"""The residual-coupled variant (v3, TreeEnsembleQuantumSelector) and its
+ablation on all 5 tasks, same protocol as the primary benchmark, plus
+paired t-tests against each task's best baseline."""
 import json
 import os
 import sys
@@ -14,9 +15,10 @@ sys.path.insert(0, SCRIPT_DIR)  # only for sibling benchmarks/*.py scripts below
 # which are standalone (not part of the installed quantum_al package);
 # quantum_al.* imports themselves work without this once pip-installed.
 
-from run_primary_benchmark import run_al_trial, prepare_task_split, TRIAL_SEEDS  # noqa: E402
+from run_primary_benchmark import TRIAL_SEEDS, prepare_task_split, run_al_trial  # noqa: E402
+
 from quantum_al.data_utils import REGRESSION_TASKS  # noqa: E402
-from quantum_al.operator_v3 import TreeEnsembleQuantumSelector  # noqa: E402
+from quantum_al.quantum_inspired import TreeEnsembleQuantumSelector  # noqa: E402
 
 VARIANTS = {
     "v3_full": lambda: TreeEnsembleQuantumSelector(seed=0, use_covariance=True, n_groups=3),
@@ -82,7 +84,8 @@ def main():
     print("\n\n=== FINAL SUMMARY (all 5 tasks) ===")
     for task in REGRESSION_TASKS:
         c = out[task]["comparison_vs_best_baseline"]
-        print(f"{task:22s} v3_full={c['v3_full_r2']:.4f}  v3_no_cov={out[task]['v3_no_covariance']['final_r2_mean']:.4f}  "
+        print(f"{task:22s} v3_full={c['v3_full_r2']:.4f}  "
+              f"v3_no_cov={out[task]['v3_no_covariance']['final_r2_mean']:.4f}  "
               f"v3_single={out[task]['v3_single_group']['final_r2_mean']:.4f}  "
               f"best_baseline({c['best_baseline_name']})={c['best_baseline_r2']:.4f}  p={c['p_value_raw']}")
 

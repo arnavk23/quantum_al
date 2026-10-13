@@ -1,11 +1,12 @@
 """Checks every mathematical property claimed in quantum_al.acquisition:
 decomposition, sandwich bound, unit invariance, second-order gap, batch
-EIG identities, monotone submodularity, and ranking equivalence with the
-original quantum_al.joint_eig selectors."""
+EIG identities, monotone submodularity, and the ensemble estimates of
+Sigma and R."""
 import itertools
 
 import numpy as np
 import pytest
+from sklearn.ensemble import RandomForestRegressor
 
 from quantum_al.acquisition import (
     CRITERIA,
@@ -17,16 +18,13 @@ from quantum_al.acquisition import (
     greedy_batch_eig,
     marginal_information_gain_sum,
     marginal_information_gains,
+    oob_residual_variance,
+    per_tree_predictions,
+    predictive_covariance,
     top_k,
     total_correlation,
     whitened_max_eigenvalue,
     whitened_trace,
-)
-from quantum_al.joint_eig import (
-    JointEIGSelector,
-    MarginalSumSelector,
-    joint_eig_score,
-    marginal_sum_score,
 )
 
 
@@ -86,13 +84,15 @@ def test_unit_invariance(cov):
     assert not np.array_equal(np.argsort(raw_trace), np.argsort(raw_trace_s))
 
 
-def test_rankings_match_original_joint_eig_scores(cov):
-    """The normalized criteria differ from quantum_al.joint_eig's scores only
-    by the candidate-independent constant 0.5 * sum(log R)."""
+def test_eig_equals_unnormalized_logdet_up_to_constant(cov):
+    """EIG = 0.5 logdet(Sigma + R) - 0.5 sum log R, so the unnormalized
+    ensemble score induces the same ranking."""
     Sigma, R = cov
     shift = 0.5 * np.log(R).sum()
-    assert np.allclose(expected_information_gain(Sigma, R), joint_eig_score(Sigma, R) - shift)
-    assert np.allclose(marginal_information_gain_sum(Sigma, R), marginal_sum_score(Sigma, R) - shift)
+    joint = 0.5 * np.linalg.slogdet(Sigma + np.diag(R)[None])[1]
+    marginal = 0.5 * np.log(np.diagonal(Sigma, axis1=1, axis2=2) + R).sum(axis=1)
+    assert np.allclose(expected_information_gain(Sigma, R), joint - shift)
+    assert np.allclose(marginal_information_gain_sum(Sigma, R), marginal - shift)
 
 
 def test_gap_is_second_order_in_snr():
@@ -157,7 +157,8 @@ def test_batch_eig_matches_direct_bk_dimensional_logdet(members):
     Fs = F[:, S, :].reshape(F.shape[0], -1)
     cov_S = np.cov(Fs, rowvar=False, ddof=1)
     noise = np.tile(R, len(S))
-    direct = 0.5 * np.linalg.slogdet(np.eye(len(noise)) + cov_S / np.sqrt(noise)[:, None] / np.sqrt(noise)[None, :])[1]
+    whitened = cov_S / np.sqrt(noise)[:, None] / np.sqrt(noise)[None, :]
+    direct = 0.5 * np.linalg.slogdet(np.eye(len(noise)) + whitened)[1]
     assert np.isclose(batch_information_gain(F[:, S, :], R), direct)
 
 
@@ -217,24 +218,31 @@ def multitask_data():
 @pytest.mark.parametrize("criterion", sorted(CRITERIA))
 def test_criterion_selector_valid_batch(criterion, multitask_data):
     Xc, Xt, Yt = multitask_data
-    sel, scores, info = EnsembleCriterionSelector(criterion, n_estimators=30).select_next_experiments(Xc, Xt, Yt, 5)
+    selector = EnsembleCriterionSelector(criterion, n_estimators=30)
+    sel, scores, info = selector.select_next_experiments(Xc, Xt, Yt, 5)
     assert len(set(np.asarray(sel).tolist())) == 5 and scores.shape == (30,)
     assert np.all(np.isfinite(scores))
 
 
-def test_criterion_selector_reproduces_original_selectors(multitask_data):
+def test_ensemble_estimates(multitask_data):
+    """Sigma(x) is the per-tree sample covariance and R the OOB residual
+    variance; a forest without OOB predictions is rejected."""
     Xc, Xt, Yt = multitask_data
-    a, _, _ = EnsembleCriterionSelector("eig", n_estimators=40, seed=1).select_next_experiments(Xc, Xt, Yt, 6)
-    b, _, _ = JointEIGSelector(n_estimators=40, seed=1).select_next_experiments(Xc, Xt, Yt, 6)
-    assert set(a.tolist()) == set(b.tolist())
-    a, _, _ = EnsembleCriterionSelector("marginal_eig", n_estimators=40, seed=1).select_next_experiments(Xc, Xt, Yt, 6)
-    b, _, _ = MarginalSumSelector(n_estimators=40, seed=1).select_next_experiments(Xc, Xt, Yt, 6)
-    assert set(a.tolist()) == set(b.tolist())
+    forest = RandomForestRegressor(n_estimators=20, oob_score=True, random_state=0).fit(Xt, Yt)
+    F = per_tree_predictions(forest, Xc)
+    assert F.shape == (20, len(Xc), 2)
+    Sigma = predictive_covariance(forest, Xc)
+    assert np.allclose(Sigma[3], np.cov(F[:, 3, :], rowvar=False))
+    R = oob_residual_variance(forest, Xt, Yt)
+    assert np.allclose(R, (Yt - forest.oob_prediction_).var(axis=0))
+    with pytest.raises(ValueError):
+        oob_residual_variance(RandomForestRegressor(n_estimators=5).fit(Xt, Yt), Xt, Yt)
 
 
 def test_criterion_selector_single_target(multitask_data):
     Xc, Xt, Yt = multitask_data
-    sel, scores, _ = EnsembleCriterionSelector("eig", n_estimators=30).select_next_experiments(Xc, Xt, Yt[:, 0], 4)
+    selector = EnsembleCriterionSelector("eig", n_estimators=30)
+    sel, scores, _ = selector.select_next_experiments(Xc, Xt, Yt[:, 0], 4)
     assert len(sel) == 4 and np.all(scores >= 0)
 
 

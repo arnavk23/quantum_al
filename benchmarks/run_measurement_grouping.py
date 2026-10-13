@@ -11,7 +11,7 @@ import os
 
 from quantum_al.circuit import measurement_grouping_report
 from quantum_al.data_utils import FEATURE_COLUMNS
-from quantum_al.operator import QuantumObservableBank, default_feature_groups
+from quantum_al.quantum_inspired import QuantumObservableBank, default_feature_groups
 
 RESULTS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "results")
 

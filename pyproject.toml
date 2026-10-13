@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=77.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,7 +7,8 @@ name = "quantum-al"
 dynamic = ["version"]
 description = "Correlation-aware active learning for materials discovery: information-theoretic multi-property acquisition, a quantum-inspired formalism with a Qiskit circuit realization, and a real-data benchmark harness."
 readme = "README.md"
-license = { file = "LICENSE" }
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [
     { name = "Arnav Kapoor", email = "arnavkapoor23@iiserb.ac.in" },
 ]
@@ -25,7 +26,6 @@ dependencies = [
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
@@ -47,6 +47,7 @@ all = ["quantum-al[data,circuit,plot,test,docs]"]
 
 [project.urls]
 Homepage = "https://github.com/arnavk23/quantum_al"
+Documentation = "https://quantum-al.readthedocs.io"
 Repository = "https://github.com/arnavk23/quantum_al"
 Issues = "https://github.com/arnavk23/quantum_al/issues"
 Changelog = "https://github.com/arnavk23/quantum_al/blob/master/CHANGELOG.md"
@@ -68,3 +69,14 @@ filterwarnings = [
 [tool.coverage.run]
 source = ["quantum_al"]
 omit = ["*/fetch_data.py"]
+
+[tool.ruff]
+line-length = 110
+extend-exclude = ["papers", "docs/_build"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = [
+    "E741",  # single-letter index names (l, O) follow the mathematical notation
+    "B905",  # zip(strict=...) adds noise in short numerical loops
+]

@@ -24,7 +24,8 @@ cd quantum_al
 python -m venv .venv
 source .venv/bin/activate        # or .venv\Scripts\activate on Windows
 pip install -e ".[all]"
-pytest                           # ~100 tests, ~15 s
+pytest                           # ~110 tests, ~20 s
+ruff check .                     # lint, as in CI
 sphinx-build -W docs docs/_build/html
 ```
 
@@ -59,14 +60,12 @@ as `tests/test_acquisition.py` does for the existing ones.
 Never report a result by editing numbers into `results/`, the papers or the
 documentation by hand. If a script fails, fix it or report the failure; never
 substitute an illustrative or synthetic number for a real-data one. This
-project was rebuilt after an earlier version broke this rule (see
-`results/SUMMARY.md`), and the benchmark loop raises on invalid selections
-rather than silently falling back for the same reason.
+project was rebuilt after an earlier version broke this rule (see the
+History section of `docs/findings.rst`), and the benchmark loop raises on
+invalid selections rather than silently falling back for the same reason.
 
-If you change `src/quantum_al/operator.py`, `joint_eig.py` or
-`acquisition.py`, the self-tests and `tests/` are what guarantee the code
-still matches the mathematics in the papers and `docs/theory.rst`; keep them
-passing.
+`tests/test_acquisition.py` and `tests/test_quantum_inspired.py` check that
+the code matches the mathematics in `docs/theory.rst`; keep them passing.
 
 ## Pull requests
 

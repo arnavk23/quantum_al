@@ -224,7 +224,7 @@ does work well is not answered here.
 The quantum-inspired covariance formalism
 -----------------------------------------
 
-The formalism in :mod:`quantum_al.operator` was compared with nine classical
+The formalism in :mod:`quantum_al.quantum_inspired` was compared with nine classical
 baselines on five real regression tasks (5 trials, 8 rounds, a 100-tree
 random forest; ``results/primary_benchmark_summary.json``,
 ``statistical_tests.json``).
@@ -243,11 +243,11 @@ random forest; ``results/primary_benchmark_summary.json``,
   (``results/ablation.json``).
 * **Coupling it to ensemble disagreement reaches parity, for a different
   reason.** Encoding states from a random forest's per-tree predictions
-  (:mod:`quantum_al.operator_v3`) brings it to statistical parity with the
+  (:class:`~quantum_al.quantum_inspired.TreeEnsembleQuantumSelector`) brings it to statistical parity with the
   best baseline on all five tasks (``results/v3_all_tasks.json``). Its
   ablation shows that dropping the covariance term, or collapsing to one
   observable, matches or beats the full construction on four of five tasks
-  (``results/v3_ablation.json``): the gain comes from the disagreement signal.
+  (``results/v3_all_tasks.json``): the gain comes from the disagreement signal.
 * **The circuit realization is exact, and expensive.** The Qiskit circuit in
   :mod:`quantum_al.circuit` reproduces the classical simulation to
   floating-point precision. Each of the nine measured quantities has 528
@@ -266,6 +266,26 @@ to quantum measurement and one derived from Bayesian experimental design,
 did not reliably outperform acquisition based on ensemble disagreement alone
 on real materials data. For the information-theoretic construction, the
 theory says why such a result is expected: the correlation term is second
-order in the epistemic-to-aleatoric ratio. The full record, including
-retracted earlier claims and pre-rebuild experiments, is in
-``results/SUMMARY.md``.
+order in the epistemic-to-aleatoric ratio.
+
+Limitations
+-----------
+
+* Five real regression tasks with 21 composition and structure features;
+  thermal conductivity is not available at scale in the Materials Project.
+* Five paired trials per real-data comparison, so only large effects are
+  detectable. ``benchmarks/run_correlation_sweep.py`` can estimate the power
+  of a design before running it on real data.
+* The nine baselines are acquisition strategies on a shared random-forest
+  evaluation model; Gaussian-process and deep-ensemble *predictors* and
+  multi-task models are not included.
+
+History
+-------
+
+An earlier version of this repository reported a 35% sample-efficiency gain
+and *p* < 0.01 over nine baselines for the quantum-inspired formalism. Those
+numbers did not reproduce from any code in the repository and were retracted
+in version 0.1.0; every result above comes from rerun experiments. The
+pre-rebuild scripts and their outputs remain in the git history (commit
+``ed33f9c`` and earlier).

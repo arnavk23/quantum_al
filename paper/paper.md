@@ -114,8 +114,9 @@ invariance to changing units, the tight two-property bound on the correlation
 term, and monotonicity, submodularity and the $(1-1/e)$ bound of the greedy
 batch by brute-force enumeration on small pools. `quantum_al.stats` reports
 paired $t$ and Wilcoxon tests, bootstrap confidence intervals, effect sizes
-and Holm correction. `quantum_al.circuit` asserts agreement between the Qiskit
-circuit and its classical closed form before reporting any resource estimate.
+and Holm correction. The tests and the circuit benchmark check that the
+Qiskit circuit in `quantum_al.circuit` reproduces the classical closed form
+before any resource estimate is reported.
 Core dependencies are NumPy [@harris2020array], SciPy [@virtanen2020scipy]
 and scikit-learn; Qiskit and pymatgen [@ong2013pymatgen] are optional extras.
 

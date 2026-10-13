@@ -33,9 +33,8 @@ for seed in seeds:
     y = Y[:, 0]                                  # baselines are single-target
     X_pool, X_test, y_pool, y_test = train_test_split(X, y, test_size=0.3, random_state=seed)
     X_pool, X_test = standardize(X_pool, X_test)
-    methods = {"Farthest-first": DistanceSelector(), **get_all_baselines()}
+    methods = {"Farthest-first": DistanceSelector(), **get_all_baselines(seed=seed)}
     for name, selector in methods.items():
-        np.random.seed(seed)                     # some baselines use the global RNG
         curve = run_active_learning(selector, X_pool, y_pool, X_test, y_test,
                                     n_initial=20, n_rounds=4, batch_size=8, seed=seed)
         finals.setdefault(name, []).append(curve.final_r2)

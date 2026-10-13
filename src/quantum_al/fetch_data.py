@@ -13,8 +13,8 @@ import argparse
 import json
 import os
 import time
-import urllib.request
 import urllib.parse
+import urllib.request
 
 import numpy as np
 

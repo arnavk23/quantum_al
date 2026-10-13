@@ -48,8 +48,8 @@ The criteria are plain functions of the ensemble's predictive covariance
 .. code-block:: python
 
    from quantum_al.acquisition import (fit_ensemble, expected_information_gain,
-                                       marginal_information_gain_sum, total_correlation)
-   from quantum_al.joint_eig import predictive_covariance
+                                       marginal_information_gain_sum, predictive_covariance,
+                                       total_correlation)
    from quantum_al.diagnostics import criterion_disagreement
 
    forest, R = fit_ensemble(X_pool[:40], Y_pool[:40], n_estimators=200)

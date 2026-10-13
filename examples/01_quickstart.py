@@ -3,7 +3,6 @@ two-property problem, with no data download or API key.
 
 Runs in well under a minute. See 05_materials_project.py for real data.
 """
-import numpy as np
 from sklearn.model_selection import train_test_split
 
 from quantum_al import EnsembleCriterionSelector, make_correlated_tasks, run_active_learning

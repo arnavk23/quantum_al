@@ -35,7 +35,7 @@ def _read_task_file(name, data_dir=None):
             "`MP_API_KEY=... python -m quantum_al.fetch_data` (needs the [data] extra), "
             "or point QUANTUM_AL_DATA_DIR at an existing copy."
         )
-    with open(path, "r") as f:
+    with open(path) as f:
         return json.load(f)
 
 FEATURE_COLUMNS = [
