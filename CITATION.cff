@@ -8,6 +8,14 @@ authors:
     orcid: "https://orcid.org/0009-0007-9818-7908"
     affiliation: "Indian Institute of Science Education and Research Bhopal"
 repository-code: "https://github.com/arnavk23/quantum_al"
+doi: 10.5281/zenodo.23351261
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.23351261
+    description: Concept DOI, resolving to the latest version
+  - type: doi
+    value: 10.5281/zenodo.23351262
+    description: Version 0.2.0
 license: MIT
 keywords:
   - active learning
