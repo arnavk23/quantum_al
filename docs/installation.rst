@@ -6,6 +6,13 @@ on NumPy, SciPy and scikit-learn.
 
 .. code-block:: bash
 
+   pip install quantum-al
+
+The examples and benchmark scripts live in the repository, so to run them, or
+to develop, install from a clone instead:
+
+.. code-block:: bash
+
    git clone https://github.com/arnavk23/quantum_al.git
    cd quantum_al
    python -m venv .venv

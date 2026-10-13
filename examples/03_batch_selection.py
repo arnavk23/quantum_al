@@ -5,9 +5,14 @@ labels. The greedy batch is provably within (1 - 1/e) of the optimal batch.
 import numpy as np
 
 from quantum_al.acquisition import (
-    batch_information_gain, expected_information_gain, fit_ensemble, greedy_batch_eig, top_k,
+    batch_information_gain,
+    expected_information_gain,
+    fit_ensemble,
+    greedy_batch_eig,
+    per_tree_predictions,
+    predictive_covariance,
+    top_k,
 )
-from quantum_al.joint_eig import per_tree_predictions, predictive_covariance
 from quantum_al.synthetic import make_correlated_tasks
 
 X, Y, _ = make_correlated_tasks(n_samples=500, correlation=0.5, noise=0.2, seed=1)

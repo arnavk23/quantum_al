@@ -9,7 +9,6 @@
 Usage: python benchmarks/run_primary_benchmark.py --stage {primary,stats,ablation,sensitivity,runtime,all}
 """
 import argparse
-import copy
 import json
 import os
 import sys
@@ -27,9 +26,10 @@ ROOT_DIR = os.path.dirname(SCRIPT_DIR)
 RESULTS_DIR = os.path.join(ROOT_DIR, "results")
 sys.path.insert(0, SCRIPT_DIR)
 
-from quantum_al.data_utils import load_task, standardize, REGRESSION_TASKS, FEATURE_COLUMNS  # noqa: E402
-from quantum_al.baselines import get_all_baselines, BASELINE_METHODS  # noqa: E402
-from quantum_al.operator import QuantumObservableBank, default_feature_groups  # noqa: E402
+from quantum_al.baselines import BASELINES  # noqa: E402
+from quantum_al.data_utils import FEATURE_COLUMNS, REGRESSION_TASKS, load_task, standardize  # noqa: E402
+from quantum_al.quantum_inspired import QuantumSelector, default_feature_groups  # noqa: E402
+from quantum_al.stats import holm_bonferroni  # noqa: E402
 
 os.makedirs(RESULTS_DIR, exist_ok=True)
 
@@ -43,25 +43,6 @@ N_TRIALS = 5         # trial_seeds 0..4
 TEST_FRACTION = 0.3
 TRIAL_SEEDS = list(range(N_TRIALS))
 PRIMARY_TASKS_FOR_STATS = ["band_gap", "formation_energy"]
-
-
-# Adapter matching the baselines' .select_next_experiments(...) interface.
-class QuantumSelector:
-    def __init__(self, d, feature_groups=None, seed=0, use_covariance=True,
-                 commuting_only=False, real_only_coeff=False, name="Quantum-Enhanced"):
-        self.name = name
-        groups = feature_groups if feature_groups is not None else default_feature_groups(d)
-        self.bank = QuantumObservableBank(
-            d, groups, seed=seed,
-            commuting_only=commuting_only, real_only_coeff=real_only_coeff,
-        )
-        self.use_covariance = use_covariance
-
-    def select_next_experiments(self, X_candidates, X_train, y_train, n_select=10):
-        scores = self.bank.batch_scores(X_train, X_candidates, use_covariance=self.use_covariance)
-        n_select = min(n_select, len(X_candidates))
-        selected_idx = np.argsort(scores)[-n_select:]
-        return selected_idx, scores, {"quantum_scores": scores}
 
 
 def make_quantum_selector(d, **kwargs):
@@ -150,16 +131,12 @@ def prepare_task_split(task_name, trial_seed):
 
 def all_method_factories(d, quantum_seed=0):
     """Returns dict name -> zero-arg factory for quantum + 9 baselines."""
-    import quantum_al.baselines as baselines_module
     factories = {"Quantum-Enhanced": lambda: make_quantum_selector(d, seed=quantum_seed)}
-    for name, method_attr in BASELINE_METHODS:
-        def factory(attr=method_attr):
-            return getattr(baselines_module.BaselineFactory(), attr)()
-        factories[name] = factory
+    factories.update({cls.name: cls for cls in BASELINES})
     return factories
 
 
-METHOD_SEED_OFFSETS = {name: i + 1 for i, (name, _) in enumerate(BASELINE_METHODS)}
+METHOD_SEED_OFFSETS = {cls.name: i + 1 for i, cls in enumerate(BASELINES)}
 METHOD_SEED_OFFSETS["Quantum-Enhanced"] = 0
 
 
@@ -240,30 +217,13 @@ def run_primary_benchmark():
 # ----------------------------------------------------------------------
 # Stage 2: Statistical testing (Table IV)
 # ----------------------------------------------------------------------
-def holm_bonferroni(pvals, alpha=0.05):
-    """Manual Holm-Bonferroni step-down correction (no statsmodels dep).
-    pvals: list of raw p-values. Returns list of adjusted p-values in the
-    ORIGINAL order, plus a list of reject booleans at level alpha."""
-    m = len(pvals)
-    order = np.argsort(pvals)
-    adj = np.empty(m)
-    running_max = 0.0
-    for rank, idx in enumerate(order):
-        factor = m - rank
-        val = pvals[idx] * factor
-        running_max = max(running_max, val)
-        adj[idx] = min(running_max, 1.0)
-    reject = adj < alpha
-    return adj.tolist(), reject.tolist()
-
-
 def run_statistical_tests(primary_summary_full=None):
     print("=" * 70)
     print("STAGE: statistical tests (Table IV)")
     print("=" * 70)
     primary_path = os.path.join(RESULTS_DIR, "primary_benchmark.json")
     if primary_summary_full is None:
-        with open(primary_path, "r") as f:
+        with open(primary_path) as f:
             primary_summary_full = json.load(f)
 
     out = {}
@@ -273,10 +233,9 @@ def run_statistical_tests(primary_summary_full=None):
         quantum_r2 = [t["r2"][-1] for t in quantum_trials if not t["error"]]
 
         task_out = {"quantum_final_r2": quantum_r2, "comparisons": {}}
-        baseline_names = [n for n, _ in BASELINE_METHODS]
+        baseline_names = [cls.name for cls in BASELINES]
         raw_pvals = []
         names_in_order = []
-        diffs_normality = {}
 
         for name in baseline_names:
             base_trials = task_data["methods"][name]["trials"]
@@ -296,7 +255,7 @@ def run_statistical_tests(primary_summary_full=None):
                     shapiro_stat, shapiro_p = stats.shapiro(diff)
                 else:
                     shapiro_stat, shapiro_p = (None, None)
-            except Exception as e:
+            except Exception:
                 shapiro_stat, shapiro_p = (None, None)
 
             task_out["comparisons"][name] = {
@@ -375,7 +334,7 @@ def run_ablation():
         }
 
     full_mean = out["variants"]["full_model"]["final_r2_mean"]
-    for vname, vdata in out["variants"].items():
+    for vdata in out["variants"].values():
         if vdata["final_r2_mean"] is not None and full_mean is not None:
             vdata["delta_vs_full"] = vdata["final_r2_mean"] - full_mean
         else:
@@ -391,7 +350,7 @@ def run_ablation():
 # Stage 4: Observable sensitivity -- band_gap only
 # ----------------------------------------------------------------------
 def default_feature_groups_k(d, k):
-    """Generalization of quantum_operator.default_feature_groups to
+    """Generalization of quantum_inspired.default_feature_groups to
     arbitrary K: split [0, d) into K overlapping contiguous blocks (each
     block overlaps its neighbor by 1 index at each boundary, same
     construction principle as the manuscript's K=3 default)."""
@@ -557,7 +516,7 @@ def run_runtime_memory():
         np.random.seed(0)
         times, peaks = [], []
         errs = []
-        for rep in range(n_repeats):
+        for _ in range(n_repeats):
             try:
                 t, m = time_one_call(factory)
                 times.append(t)

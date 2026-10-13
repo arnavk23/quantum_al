@@ -11,9 +11,9 @@ import sys
 from sklearn.model_selection import train_test_split
 
 from quantum_al import EnsembleCriterionSelector, run_active_learning
+from quantum_al.acquisition import predictive_covariance
 from quantum_al.data_utils import load_multi_task, standardize
 from quantum_al.diagnostics import criterion_disagreement
-from quantum_al.joint_eig import predictive_covariance
 
 try:
     X, Y, meta = load_multi_task(["band_gap", "formation_energy"])

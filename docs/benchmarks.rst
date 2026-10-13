@@ -56,8 +56,8 @@ Experiments
    * - ``run_improvement_attempt.py``
      - ``improvement_attempt.json``
      - MP data
-   * - ``run_v3_test.py``, ``run_v3_ablation.py``, ``run_v3_all_tasks.py``
-     - ``v3_test.json``, ``v3_ablation.json``, ``v3_all_tasks.json``
+   * - ``run_v3_all_tasks.py``
+     - ``v3_all_tasks.json``
      - MP data
    * - ``run_sparse_observable_experiment.py``
      - ``sparse_observable_experiment.json``
@@ -81,7 +81,7 @@ used for each of the four real property pairs.
 Testing
 -------
 
-``pytest`` runs over 100 tests in about 15 seconds. Besides interface and
+``pytest`` runs over 100 tests in about 20 seconds. Besides interface and
 regression tests they check, numerically, every mathematical claim in
 :doc:`theory`: the decomposition identity, the sandwich and two-property
 bounds (including tightness), unit invariance, the second-order behavior of

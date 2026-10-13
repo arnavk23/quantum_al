@@ -8,29 +8,32 @@ import sys
 
 import numpy as np
 from scipy import stats
-from sklearn.ensemble import RandomForestRegressor
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.dirname(SCRIPT_DIR)
 RESULTS_DIR = os.path.join(ROOT_DIR, "results")
 sys.path.insert(0, SCRIPT_DIR)
 
-from run_primary_benchmark import run_al_trial, prepare_task_split, TRIAL_SEEDS  # noqa: E402
+from run_primary_benchmark import TRIAL_SEEDS, prepare_task_split, run_al_trial  # noqa: E402
+
+from quantum_al.circuit import n_qubits_for_dim, pad_observable, pauli_decompose  # noqa: E402
 from quantum_al.data_utils import FEATURE_COLUMNS  # noqa: E402
-from quantum_al.operator import default_feature_groups, encode_states, feature_phase_weights  # noqa: E402
-from quantum_al.operator_sparse import SparseQuantumObservableBank, SparseQuantumSelector  # noqa: E402
-from quantum_al.operator_v3 import tree_group_split  # noqa: E402
-from quantum_al.circuit import pad_observable, pauli_decompose, n_qubits_for_dim  # noqa: E402
+from quantum_al.quantum_inspired import (  # noqa: E402
+    QuantumSelector,
+    TreeEnsembleQuantumSelector,
+    default_feature_groups,
+    make_observable,
+    make_sparse_observable,
+    tree_group_split,
+)
 
 
 def safe_qwc_count(op):
     return 0 if len(op.paulis) == 0 else len(op.group_commuting(qubit_wise=True))
 
 
-def pauli_overhead(make_observable_fn, d, groups, seed=1):
-    from quantum_al.operator import make_observable as dense_make_observable
+def pauli_overhead(ctor, d, groups, seed=1):
     names = list(groups.keys())
-    ctor = make_observable_fn or dense_make_observable
     nq = n_qubits_for_dim(d)
     O = {n: ctor(d, groups[n], seed=seed + i) for i, n in enumerate(names)}
     O_pad = {n: pad_observable(O[n], nq) for n in names}
@@ -54,37 +57,6 @@ def pauli_overhead(make_observable_fn, d, groups, seed=1):
     return {"n_qubits": nq, "total_raw": total_raw, "total_qwc": total_qwc, "per_quantity": per_quantity}
 
 
-class SparseTreeEnsembleSelector:
-    def __init__(self, seed=0, n_estimators=99, n_groups=3, use_covariance=True):
-        self.seed = seed
-        self.n_estimators = n_estimators
-        self.n_groups = n_groups
-        self.use_covariance = use_covariance
-
-    def select_next_experiments(self, X_candidates, X_train, y_train, n_select=10):
-        rf = RandomForestRegressor(n_estimators=self.n_estimators, random_state=self.seed)
-        rf.fit(X_train, y_train)
-        tree_preds_cand = np.stack([t.predict(X_candidates) for t in rf.estimators_], axis=1)
-        tree_preds_train = np.stack([t.predict(X_train) for t in rf.estimators_], axis=1)
-        mu = tree_preds_train.mean(axis=0)
-        sigma = tree_preds_train.std(axis=0)
-        sigma[sigma < 1e-12] = 1.0
-        Z_train = (tree_preds_train - mu) / sigma
-        Z_cand = (tree_preds_cand - mu) / sigma
-        n_trees = Z_cand.shape[1]
-        groups = tree_group_split(n_trees, self.n_groups)
-        bank = SparseQuantumObservableBank(n_trees, groups, seed=self.seed)
-        phase_weights = feature_phase_weights(Z_train)
-        psi_cand = encode_states(Z_cand, phase_weights)
-        scores = np.array([
-            bank.total_uncertainty(psi_cand[i], use_covariance=self.use_covariance)
-            for i in range(psi_cand.shape[0])
-        ])
-        n_select = min(n_select, len(X_candidates))
-        selected_idx = np.argsort(scores)[-n_select:]
-        return selected_idx, scores, {}
-
-
 def run_variant_on_band_gap(factory_fn):
     finals = []
     for trial in TRIAL_SEEDS:
@@ -100,15 +72,14 @@ def main():
     groups = default_feature_groups(d)
 
     print("Pauli overhead, K=3 raw features (d=21) ...")
-    from quantum_al.operator_sparse import make_sparse_observable
-    from quantum_al.operator import make_observable
     dense_overhead = pauli_overhead(make_observable, d, groups)
     sparse_overhead = pauli_overhead(make_sparse_observable, d, groups)
     print("dense:", dense_overhead["total_raw"], dense_overhead["total_qwc"])
     print("sparse:", sparse_overhead["total_raw"], sparse_overhead["total_qwc"])
 
     print("\nAccuracy: sparse vs dense, original formalism, band_gap ...")
-    sparse_finals = run_variant_on_band_gap(lambda: SparseQuantumSelector(d, seed=0))
+    sparse_finals = run_variant_on_band_gap(
+        lambda: QuantumSelector(d, seed=0, sparse=True, name="Quantum-Sparse"))
     with open(os.path.join(RESULTS_DIR, "primary_benchmark_summary.json")) as f:
         dense_finals = json.load(f)["band_gap"]["Quantum-Enhanced"]["final_r2_per_trial"]
     t_orig, p_orig = stats.ttest_rel(sparse_finals, dense_finals)
@@ -116,7 +87,7 @@ def main():
 
     print("\nAccuracy: sparse vs dense, v3 residual-coupled fix, band_gap ...")
     sparse_v3_finals = run_variant_on_band_gap(
-        lambda: SparseTreeEnsembleSelector(seed=0, n_estimators=99)
+        lambda: TreeEnsembleQuantumSelector(seed=0, n_estimators=99, sparse=True)
     )
     with open(os.path.join(RESULTS_DIR, "v3_all_tasks.json")) as f:
         dense_v3_full = json.load(f)

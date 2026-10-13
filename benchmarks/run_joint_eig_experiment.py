@@ -1,4 +1,4 @@
-"""Tests the joint-EIG acquisition function (quantum_al.joint_eig) against
+"""Tests the joint-EIG acquisition function (quantum_al.acquisition) against
 its own classical-limit ablation (marginal-sum) and random sampling, on
 two real, jointly-labeled MP properties with a genuine, non-trivial
 correlation (band_gap, formation_energy: r=-0.365, n=498 shared materials).
@@ -33,12 +33,14 @@ ROOT_DIR = os.path.dirname(SCRIPT_DIR)
 RESULTS_DIR = os.path.join(ROOT_DIR, "results")
 sys.path.insert(0, SCRIPT_DIR)
 
-from quantum_al.acquisition import EnsembleCriterionSelector, GreedyBatchEIGSelector  # noqa: E402
+from quantum_al.acquisition import (  # noqa: E402
+    EnsembleCriterionSelector,
+    GreedyBatchEIGSelector,
+    predictive_covariance,
+    total_correlation,
+)
 from quantum_al.data_utils import load_multi_task, standardize  # noqa: E402
 from quantum_al.diagnostics import criterion_disagreement  # noqa: E402
-from quantum_al.joint_eig import (  # noqa: E402
-    JointEIGSelector, MarginalSumSelector, predictive_covariance, total_correlation_gap,
-)
 from quantum_al.loop import LearningCurve, run_active_learning  # noqa: E402
 from quantum_al.stats import holm_bonferroni, paired_comparison  # noqa: E402
 
@@ -66,7 +68,7 @@ def _track_joint_diagnostics(batch_size):
     def hook(it, info, X_candidates):
         Sigma = predictive_covariance(info["forest"], X_candidates)
         out = criterion_disagreement(Sigma, info["R"], batch_size)
-        out["mean_gap"] = float(np.mean(total_correlation_gap(Sigma, info["R"])))
+        out["mean_gap"] = float(np.mean(total_correlation(Sigma, info["R"])))
         return out
     return hook
 
@@ -120,8 +122,10 @@ def main(tasks, n_trials, out_name, n0=N0_DEFAULT, t_iters=T_ITERS_DEFAULT, batc
     print(f"raw label correlation r={pair_corr:.3f}")
 
     factories = {
-        "Joint-EIG": lambda: JointEIGSelector(n_estimators=N_ESTIMATORS, seed=0),
-        "Marginal-Sum": lambda: MarginalSumSelector(n_estimators=N_ESTIMATORS, seed=0),
+        "Joint-EIG": lambda: EnsembleCriterionSelector(
+            "eig", n_estimators=N_ESTIMATORS, seed=0, name="Joint-EIG"),
+        "Marginal-Sum": lambda: EnsembleCriterionSelector(
+            "marginal_eig", n_estimators=N_ESTIMATORS, seed=0, name="Marginal-Sum"),
         "Random": lambda: RandomSelector(),
     }
     seed_offsets = {"Joint-EIG": 0, "Marginal-Sum": 1, "Random": 2}

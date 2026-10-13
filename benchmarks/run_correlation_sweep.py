@@ -31,10 +31,9 @@ import time
 import numpy as np
 from sklearn.model_selection import train_test_split
 
-from quantum_al.acquisition import EnsembleCriterionSelector, GreedyBatchEIGSelector
+from quantum_al.acquisition import EnsembleCriterionSelector, GreedyBatchEIGSelector, predictive_covariance
 from quantum_al.data_utils import standardize
 from quantum_al.diagnostics import criterion_disagreement
-from quantum_al.joint_eig import predictive_covariance
 from quantum_al.loop import run_active_learning
 from quantum_al.stats import holm_bonferroni, paired_comparison
 from quantum_al.synthetic import make_correlated_tasks
@@ -61,7 +60,8 @@ class RandomSelector:
 def method_factories(n_estimators):
     return {
         "Joint-EIG": lambda s: EnsembleCriterionSelector("eig", n_estimators=n_estimators, seed=s),
-        "Marginal-EIG": lambda s: EnsembleCriterionSelector("marginal_eig", n_estimators=n_estimators, seed=s),
+        "Marginal-EIG": lambda s: EnsembleCriterionSelector(
+            "marginal_eig", n_estimators=n_estimators, seed=s),
         "Greedy-Batch-EIG": lambda s: GreedyBatchEIGSelector(n_estimators=n_estimators, seed=s),
         "Trace": lambda s: EnsembleCriterionSelector("trace", n_estimators=n_estimators, seed=s),
         "Random": lambda s: RandomSelector(s),
@@ -120,7 +120,8 @@ def main(cfg, out_name):
                 },
                 "comparisons": {
                     "Joint-EIG vs Marginal-EIG": paired_comparison(aulcs["Joint-EIG"], aulcs["Marginal-EIG"]),
-                    "Greedy-Batch-EIG vs Joint-EIG": paired_comparison(aulcs["Greedy-Batch-EIG"], aulcs["Joint-EIG"]),
+                    "Greedy-Batch-EIG vs Joint-EIG": paired_comparison(
+                        aulcs["Greedy-Batch-EIG"], aulcs["Joint-EIG"]),
                     "Joint-EIG vs Random": paired_comparison(aulcs["Joint-EIG"], aulcs["Random"]),
                 },
             }

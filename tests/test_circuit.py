@@ -1,5 +1,5 @@
 """Checks quantum_al.circuit's statevector-simulated variance/covariance
-match quantum_al.operator's classical formula exactly. Skipped if qiskit
+match quantum_al.quantum_inspired's classical formula exactly. Skipped if qiskit
 isn't installed (pip install -e ".[circuit]").
 """
 import numpy as np
@@ -7,9 +7,14 @@ import pytest
 
 qiskit = pytest.importorskip("qiskit")
 
-from quantum_al.operator import make_observable, default_feature_groups, encode_states
-from quantum_al.operator_sparse import make_sparse_observable
-from quantum_al.circuit import circuit_variance, circuit_covariance
+from quantum_al.circuit import circuit_covariance, circuit_variance  # noqa: E402
+from quantum_al.quantum_inspired import (  # noqa: E402
+    QuantumObservableBank,
+    default_feature_groups,
+    encode_states,
+    make_observable,
+    make_sparse_observable,
+)
 
 
 @pytest.fixture
@@ -68,7 +73,6 @@ def test_sparse_circuit_variance_matches_classical(sample_state):
 
 def test_measurement_grouping_reduces_settings():
     from quantum_al.circuit import grouping_counts, measurement_grouping_report, pauli_decompose
-    from quantum_al.operator import QuantumObservableBank
 
     bank = QuantumObservableBank(21, default_feature_groups(21), seed=0)
     report = measurement_grouping_report(bank.O)

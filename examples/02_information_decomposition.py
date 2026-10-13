@@ -5,10 +5,14 @@ and why the total-correlation term is second order in low-signal regimes.
 import numpy as np
 
 from quantum_al.acquisition import (
-    epistemic_aleatoric_ratio, expected_information_gain, fit_ensemble,
-    marginal_information_gains, total_correlation, whitened_trace,
+    epistemic_aleatoric_ratio,
+    expected_information_gain,
+    fit_ensemble,
+    marginal_information_gains,
+    predictive_covariance,
+    total_correlation,
+    whitened_trace,
 )
-from quantum_al.joint_eig import predictive_covariance
 from quantum_al.synthetic import make_correlated_tasks
 
 X, Y, _ = make_correlated_tasks(n_samples=400, correlation=0.8, noise=0.3, seed=0)

@@ -9,8 +9,6 @@ Acquisition criteria
 
 .. automodule:: quantum_al.acquisition
 
-.. automodule:: quantum_al.joint_eig
-
 Diagnostics
 -----------
 
@@ -36,13 +34,7 @@ Classical baselines
 Quantum-inspired formalism
 --------------------------
 
-.. automodule:: quantum_al.operator
-
-.. automodule:: quantum_al.operator_v2
-
-.. automodule:: quantum_al.operator_v3
-
-.. automodule:: quantum_al.operator_sparse
+.. automodule:: quantum_al.quantum_inspired
 
 .. automodule:: quantum_al.circuit
 

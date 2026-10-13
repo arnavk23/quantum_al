@@ -1,21 +1,25 @@
-"""Qiskit circuit realization of the operator.py formalism: amplitude
-encoding on ceil(log2(d)) qubits, Pauli-decomposed measurement of <O>,
-<O^2>, and covariance cross-terms. Also NISQ resource tools: gate/qubit
-counts, shot-based estimation, depolarizing noise, measurement grouping.
+"""Qiskit circuit realization of :mod:`quantum_al.quantum_inspired`.
+
+States are amplitude-encoded on ``ceil(log2 d)`` qubits, and ``<O>``,
+``<O^2>`` and the symmetrized covariance terms are measured through Pauli
+decompositions. Also provides near-term resource tools: gate and qubit
+counts, shot-based and noisy estimation, and measurement grouping.
+Requires the ``[circuit]`` extra (Qiskit and Qiskit Aer).
 """
 import numpy as np
+
 try:
     from qiskit import QuantumCircuit
     from qiskit.circuit.library import StatePreparation
-    from qiskit.quantum_info import SparsePauliOp, Statevector
     from qiskit.primitives import StatevectorEstimator
+    from qiskit.quantum_info import SparsePauliOp
     _HAVE_QISKIT = True
 except ImportError:
     _HAVE_QISKIT = False
 
 try:
-    from qiskit_aer.primitives import EstimatorV2 as AerEstimatorV2
     from qiskit_aer.noise import NoiseModel, depolarizing_error
+    from qiskit_aer.primitives import EstimatorV2 as AerEstimatorV2
     _HAVE_AER = True
 except ImportError:
     _HAVE_AER = False
@@ -232,51 +236,3 @@ def make_depolarizing_noise_model(p1=0.001, p2=0.01):
     noise_model.add_all_qubit_quantum_error(err1, ["sx", "x", "rz"])
     noise_model.add_all_qubit_quantum_error(err2, ["cx"])
     return noise_model
-
-
-def self_test():
-    """Checks circuit-computed Var/Cov match operator.py's classical
-    closed-form exactly in the noiseless limit."""
-    from quantum_al.operator import make_observable, default_feature_groups, encode_states
-
-    rng = np.random.default_rng(0)
-    d = 21
-    x = rng.normal(size=(1, d))
-    x = (x - x.mean()) / (x.std() + 1e-8)
-    phase_weights = np.zeros(d)
-    alpha = encode_states(x, phase_weights)[0]
-
-    groups = default_feature_groups(d)
-    O_struct = make_observable(d, groups["structural"], seed=1)
-    O_elec = make_observable(d, groups["electronic"], seed=2)
-
-    # Classical closed-form reference.
-    exp_O = np.real(np.conj(alpha) @ (O_struct @ alpha))
-    exp_O2 = np.real(np.conj(alpha) @ (O_struct @ (O_struct @ alpha)))
-    classical_var = max(0.0, exp_O2 - exp_O ** 2)
-
-    circuit_var, n_terms_O, n_terms_O2 = circuit_variance(alpha, O_struct, exact=True)
-    print(f"[self_test] classical Var = {classical_var:.8f}")
-    print(f"[self_test] circuit   Var = {circuit_var:.8f}  "
-          f"({n_terms_O} Pauli terms for O, {n_terms_O2} for O^2)")
-    assert abs(classical_var - circuit_var) < 1e-6, "circuit/classical variance mismatch"
-
-    sym = (O_struct @ O_elec + O_elec @ O_struct) / 2.0
-    exp_sym = np.real(np.conj(alpha) @ (sym @ alpha))
-    exp_k = np.real(np.conj(alpha) @ (O_struct @ alpha))
-    exp_l = np.real(np.conj(alpha) @ (O_elec @ alpha))
-    classical_cov = exp_sym - exp_k * exp_l
-
-    circuit_cov, n_terms_cov = circuit_covariance(alpha, O_struct, O_elec, exact=True)
-    print(f"[self_test] classical Cov = {classical_cov:.8f}")
-    print(f"[self_test] circuit   Cov = {circuit_cov:.8f}  ({n_terms_cov} Pauli terms)")
-    assert abs(classical_cov - circuit_cov) < 1e-6, "circuit/classical covariance mismatch"
-
-    resources = transpiled_resource_report(alpha)
-    print(f"[self_test] state-prep resources: {resources}")
-
-    print("[self_test] circuit realization matches classical formalism exactly. All checks passed.")
-
-
-if __name__ == "__main__":
-    self_test()

@@ -60,7 +60,7 @@ joint and correlation-blind criteria would have selected different batches
 |---|---|
 | `run_primary_benchmark.py --stage all` | `primary_benchmark.json`, `primary_benchmark_summary.json`, `statistical_tests.json`, `ablation.json`, `observable_sensitivity.json`, `runtime_memory.json` |
 | `run_improvement_attempt.py` | `improvement_attempt.json` (two narrow fixes that did not help) |
-| `run_v3_test.py`, `run_v3_ablation.py`, `run_v3_all_tasks.py` | `v3_test.json`, `v3_ablation.json`, `v3_all_tasks.json` (the residual-coupled variant and its ablation) |
+| `run_v3_all_tasks.py` | `v3_all_tasks.json` (the residual-coupled variant and its ablation) |
 | `run_sparse_observable_experiment.py` | `sparse_observable_experiment.json` (needs `[circuit]`) |
 | `run_quantum_circuit_experiment.py` | `quantum_circuit_experiment.json` (needs `[circuit]`) |
 
@@ -72,6 +72,3 @@ joint and correlation-blind criteria would have selected different batches
 ```bash
 python benchmarks/make_paper_figures.py   # needs the [plot] extra
 ```
-
-Files in `results/legacy/` come from pre-rebuild scripts that are no longer
-in the tree; see the README there.

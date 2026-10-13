@@ -1,4 +1,4 @@
-"""Tests operator_v2.py's two fixes against the original, same protocol
+"""Tests two fixes to the quantum-inspired selector against the original, same protocol
 as the primary benchmark."""
 import json
 import os
@@ -11,47 +11,19 @@ ROOT_DIR = os.path.dirname(SCRIPT_DIR)
 RESULTS_DIR = os.path.join(ROOT_DIR, "results")
 sys.path.insert(0, SCRIPT_DIR)
 
-from quantum_al.data_utils import load_task, standardize, FEATURE_COLUMNS, REGRESSION_TASKS  # noqa: E402
-from run_primary_benchmark import run_al_trial, prepare_task_split, N0, T_ITERS, BATCH_SIZE, TRIAL_SEEDS  # noqa: E402
-from quantum_al.operator import default_feature_groups  # noqa: E402
-from quantum_al.operator_v2 import (  # noqa: E402
-    domain_feature_groups, ImportanceWeightedQuantumSelector,
+from run_primary_benchmark import TRIAL_SEEDS, prepare_task_split, run_al_trial  # noqa: E402
+
+from quantum_al.data_utils import FEATURE_COLUMNS  # noqa: E402
+from quantum_al.quantum_inspired import (  # noqa: E402
+    ImportanceWeightedQuantumSelector,
+    QuantumSelector,
+    domain_feature_groups,
 )
-import quantum_al.operator as qo  # noqa: E402
-
-
-class PlainQuantumDomainGroups:
-    """Original QuantumSelector logic, but with domain-informed feature
-    groups instead of arbitrary contiguous thirds. Isolates the effect of
-    (1) alone, without (2)'s importance weighting."""
-    def __init__(self, d, seed=0, name="Quantum-DomainGroups"):
-        self.name = name
-        groups = domain_feature_groups()
-        self.bank = qo.QuantumObservableBank(d, groups, seed=seed)
-
-    def select_next_experiments(self, X_candidates, X_train, y_train, n_select=10):
-        scores = self.bank.batch_scores(X_train, X_candidates, use_covariance=True)
-        n_select = min(n_select, len(X_candidates))
-        selected_idx = np.argsort(scores)[-n_select:]
-        return selected_idx, scores, {"quantum_scores": scores}
-
-
-class PlainQuantumOriginal:
-    def __init__(self, d, seed=0, name="Quantum-Original"):
-        self.name = name
-        groups = default_feature_groups(d)
-        self.bank = qo.QuantumObservableBank(d, groups, seed=seed)
-
-    def select_next_experiments(self, X_candidates, X_train, y_train, n_select=10):
-        scores = self.bank.batch_scores(X_train, X_candidates, use_covariance=True)
-        n_select = min(n_select, len(X_candidates))
-        selected_idx = np.argsort(scores)[-n_select:]
-        return selected_idx, scores, {"quantum_scores": scores}
-
 
 VARIANTS = {
-    "original_default_thirds": lambda d: PlainQuantumOriginal(d, seed=0),
-    "domain_groups_only": lambda d: PlainQuantumDomainGroups(d, seed=0),
+    "original_default_thirds": lambda d: QuantumSelector(d, seed=0, name="Quantum-Original"),
+    "domain_groups_only": lambda d: QuantumSelector(
+        d, feature_groups=domain_feature_groups(), seed=0, name="Quantum-DomainGroups"),
     "domain_groups_plus_importance_weighting": lambda d: ImportanceWeightedQuantumSelector(d, seed=0),
 }
 
